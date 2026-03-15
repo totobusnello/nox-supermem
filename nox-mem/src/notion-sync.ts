@@ -2,17 +2,17 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import type { NotionItem } from "./consolidate.js";
+import { getConfig } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const NOTION_API = "https://api.notion.com/v1/pages";
 const NOTION_VERSION = "2025-09-03";
-// TODO: load from getConfig().notion.databaseId
-const DATABASE_ID = process.env.NOTION_DATABASE_ID ?? ""; // configure in config.json
+const getDatabase = () => getConfig().notion.databaseId;
 const SYNC_LOG_PATH = resolve(__dirname, "..", "last-sync.json");
 
 function getNotionToken(): string | null {
   try {
-    return process.env.NOTION_TOKEN ?? "" // configure in config.json;
+    return getConfig().notion.token || process.env.NOTION_TOKEN || "" // configure in config.json;
   } catch {
     console.error("[WARN] Notion token not configured. Set NOTION_TOKEN env or configure config.json");
     return null;
@@ -22,7 +22,7 @@ function getNotionToken(): string | null {
 async function createNotionPage(token: string, item: NotionItem): Promise<boolean> {
   try {
     const body = {
-      parent: { database_id: DATABASE_ID },
+      parent: { database_id: getDatabase() },
       properties: {
         "Título": { title: [{ text: { content: item.title.substring(0, 100) } }] },
         "Data": { date: { start: item.date } },
