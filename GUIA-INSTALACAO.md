@@ -57,6 +57,8 @@ apt-get update && apt-get upgrade -y
 
 ## Seção 3 — Instalar Node.js 20
 
+> ⚠️ **Aviso de segurança:** O comando abaixo usa o padrão `curl | bash` — ele baixa e executa um script diretamente da internet. Isso é conveniente, mas exige confiança no domínio `nodesource.com`. Se preferir uma abordagem mais segura, baixe o script primeiro, inspecione e depois execute: `curl -fsSL https://deb.nodesource.com/setup_20.x -o setup_node.sh && cat setup_node.sh && bash setup_node.sh`
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt-get install -y nodejs
