@@ -1,15 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
+import { resolve } from "path";
+import { getConfig } from "./config.js";
 import { execFileSync } from "child_process";
 import { getDb } from "./db.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// TODO: replace with getConfig().workspace (see config.ts)
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE ?? `${process.env.HOME}/.openclaw/workspace`;
-const OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
-const MODEL = "llama3.2:3b";
-const PROMPT_PATH = resolve(__dirname, "..", "prompts", "digest.txt");
 
 function getISOWeek(date: Date): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -23,10 +17,10 @@ function getISOWeek(date: Date): string {
 async function callOllamaText(prompt: string, retries = 3): Promise<string | null> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(OLLAMA_URL, {
+      const response = await fetch(getConfig().ollama.url.replace(/\/api\/generate$/, "") + "/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, prompt, stream: false, options: { temperature: 0.3 } }),
+        body: JSON.stringify({ model: getConfig().ollama.model, prompt, stream: false, options: { temperature: 0.3 } }),
         signal: AbortSignal.timeout(120_000),
       });
       if (!response.ok) {
@@ -48,7 +42,7 @@ async function callOllamaText(prompt: string, retries = 3): Promise<string | nul
 
 export async function digest(): Promise<void> {
   const db = getDb();
-  const promptTemplate = readFileSync(PROMPT_PATH, "utf-8");
+  const promptTemplate = readFileSync(resolve(getConfig().promptsDir, "digest.txt"), "utf-8");
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const chunks = db.prepare(
@@ -67,7 +61,7 @@ export async function digest(): Promise<void> {
   if (!result) return;
 
   const weekId = getISOWeek(new Date());
-  const digestDir = resolve(WORKSPACE, "memory", "digests");
+  const digestDir = resolve(getConfig().workspace, "memory", "digests");
   mkdirSync(digestDir, { recursive: true });
 
   const digestPath = resolve(digestDir, `${weekId}.md`);
@@ -76,8 +70,8 @@ export async function digest(): Promise<void> {
   console.log(`[INFO] Digest saved to ${digestPath}`);
 
   try {
-    execFileSync("git", ["-C", WORKSPACE, "add", `memory/digests/${weekId}.md`], { stdio: "pipe" });
-    execFileSync("git", ["-C", WORKSPACE, "commit", "-m", `chore(memory): weekly digest ${weekId}`], { stdio: "pipe" });
+    execFileSync("git", ["-C", getConfig().workspace, "add", `memory/digests/${weekId}.md`], { stdio: "pipe" });
+    execFileSync("git", ["-C", getConfig().workspace, "commit", "-m", `chore(memory): weekly digest ${weekId}`], { stdio: "pipe" });
     console.log(`[INFO] Git commit: weekly digest ${weekId}`);
   } catch {}
 }
