@@ -1,17 +1,10 @@
-import { readFileSync, existsSync, writeFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { execFileSync } from "child_process";
 import { getDb } from "./db.js";
 import { search } from "./search.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// TODO: replace with getConfig().workspace (see config.ts)
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE ?? `${process.env.HOME}/.openclaw/workspace`;
-const OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
-const MODEL = "llama3.2:3b";
-const PROMPT_PATH = resolve(__dirname, "..", "prompts", "consolidate.txt");
-const MAX_FILES_PER_RUN = 5;
+import { getConfig } from "./config.js";
+import { ensureFile, appendInSection } from "./appendInSection.js";
 
 interface ConsolidationResult {
   decisions: Array<{ text: string; permanent: boolean }>;
@@ -32,10 +25,10 @@ export interface NotionItem {
 async function callOllama(prompt: string, retries = 3): Promise<ConsolidationResult | null> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(OLLAMA_URL, {
+      const response = await fetch(getConfig().ollama.url + "/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, prompt, format: "json", stream: false, options: { temperature: 0 } }),
+        body: JSON.stringify({ model: getConfig().ollama.model, prompt, format: "json", stream: false, options: { temperature: 0 } }),
         signal: AbortSignal.timeout(120_000),
       });
       if (!response.ok) { console.error(`[WARN] Ollama HTTP ${response.status} (attempt ${attempt}/${retries})`); continue; }
@@ -70,44 +63,10 @@ function isDuplicate(text: string): boolean {
   return false;
 }
 
-function ensureFile(path: string, header: string): void {
-  if (!existsSync(path)) writeFileSync(path, header + "\n\n", "utf-8");
-}
-
-/**
- * Insert content inside the correct section of a markdown file.
- * Finds the section header, then appends BEFORE the next ## header (or end of file).
- */
-function appendInSection(path: string, section: string, content: string): void {
-  let existing = readFileSync(path, "utf-8");
-
-  if (!existing.includes(section)) {
-    // Section doesn't exist — add it at the end
-    existing = existing.trimEnd() + "\n\n" + section + "\n\n" + content + "\n";
-    writeFileSync(path, existing, "utf-8");
-    return;
-  }
-
-  // Find section position and insert before next ## header
-  const sectionIdx = existing.indexOf(section);
-  const afterSection = sectionIdx + section.length;
-
-  // Find next ## header after this section
-  const nextHeaderMatch = existing.substring(afterSection).match(/\n## /);
-  const insertPos = nextHeaderMatch
-    ? afterSection + nextHeaderMatch.index!  // Before next section
-    : existing.length;                        // End of file
-
-  // Insert content at the correct position
-  const before = existing.substring(0, insertPos).trimEnd();
-  const after = existing.substring(insertPos);
-  writeFileSync(path, before + "\n" + content + "\n" + after, "utf-8");
-}
-
 function gitCommit(message: string): void {
   try {
-    execFileSync("git", ["-C", WORKSPACE, "add", "memory/", "MEMORY.md"], { stdio: "pipe" });
-    execFileSync("git", ["-C", WORKSPACE, "commit", "-m", message], { stdio: "pipe" });
+    execFileSync("git", ["-C", getConfig().workspace, "add", "memory/", "MEMORY.md"], { stdio: "pipe" });
+    execFileSync("git", ["-C", getConfig().workspace, "commit", "-m", message], { stdio: "pipe" });
     console.log(`[INFO] Git commit: ${message}`);
   } catch {
     // No changes to commit — not critical
@@ -116,7 +75,7 @@ function gitCommit(message: string): void {
 
 export async function consolidate(options?: { retryFailed?: boolean }): Promise<{ processed: number; extracted: number; skipped: number; remaining: number; notionItems: NotionItem[] }> {
   const db = getDb();
-  const promptTemplate = readFileSync(PROMPT_PATH, "utf-8");
+  const promptTemplate = readFileSync(resolve(getConfig().promptsDir, "consolidate.txt"), "utf-8");
 
   // If retryFailed, reset failed files first
   if (options?.retryFailed) {
@@ -131,7 +90,7 @@ export async function consolidate(options?: { retryFailed?: boolean }): Promise<
     AND source_file NOT IN (SELECT source_file FROM consolidated_files)
     ORDER BY source_date ASC
     LIMIT ?
-  `).all(MAX_FILES_PER_RUN) as Array<{ source_file: string; source_date: string }>;
+  `).all(getConfig().consolidation.maxFilesPerRun) as Array<{ source_file: string; source_date: string }>;
 
   const totalPending = (db.prepare(`
     SELECT COUNT(DISTINCT source_file) as c FROM chunks
@@ -165,7 +124,7 @@ export async function consolidate(options?: { retryFailed?: boolean }): Promise<
     const date = source_file.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || "unknown";
 
     // Process decisions
-    const decisionsPath = resolve(WORKSPACE, "memory", "decisions.md");
+    const decisionsPath = resolve(getConfig().workspace, "memory", "decisions.md");
     ensureFile(decisionsPath, "# decisions.md — Decisões Permanentes");
     for (const d of result.decisions) {
       if (!isDuplicate(d.text)) {
@@ -176,7 +135,7 @@ export async function consolidate(options?: { retryFailed?: boolean }): Promise<
     }
 
     // Process lessons
-    const lessonsPath = resolve(WORKSPACE, "memory", "lessons.md");
+    const lessonsPath = resolve(getConfig().workspace, "memory", "lessons.md");
     ensureFile(lessonsPath, "# memory/lessons.md — Lições Aprendidas");
     for (const l of result.lessons) {
       if (!isDuplicate(l.text)) {
@@ -188,7 +147,7 @@ export async function consolidate(options?: { retryFailed?: boolean }): Promise<
     }
 
     // Process people
-    const peoplePath = resolve(WORKSPACE, "memory", "people.md");
+    const peoplePath = resolve(getConfig().workspace, "memory", "people.md");
     ensureFile(peoplePath, "# memory/people.md — Equipe e Contatos");
     for (const p of result.people) {
       if (!isDuplicate(`${p.name} ${p.info}`)) {
@@ -199,7 +158,7 @@ export async function consolidate(options?: { retryFailed?: boolean }): Promise<
     }
 
     // Process projects
-    const projectsPath = resolve(WORKSPACE, "memory", "projects.md");
+    const projectsPath = resolve(getConfig().workspace, "memory", "projects.md");
     ensureFile(projectsPath, "# memory/projects.md — Projetos");
     for (const proj of result.projects) {
       if (!isDuplicate(`${proj.name} ${proj.update}`)) {
@@ -210,7 +169,7 @@ export async function consolidate(options?: { retryFailed?: boolean }): Promise<
     }
 
     // Process pending
-    const pendingPath = resolve(WORKSPACE, "memory", "pending.md");
+    const pendingPath = resolve(getConfig().workspace, "memory", "pending.md");
     ensureFile(pendingPath, "# memory/pending.md — Pendências");
     for (const pend of result.pending) {
       if (!isDuplicate(pend.text)) {
