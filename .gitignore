@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+last-sync.json
+config.json
+.env
+*.log
+nox-supermem-tier-*.zip

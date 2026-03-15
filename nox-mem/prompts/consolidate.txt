@@ -1,0 +1,13 @@
+Extraia do texto abaixo todos os fatos relevantes.
+Retorne APENAS um JSON com esta estrutura exata:
+{
+  "decisions": [{"text": "descrição da decisão", "permanent": true}],
+  "lessons": [{"text": "descrição da lição", "type": "strategic"}],
+  "people": [{"name": "Nome Completo", "info": "informação relevante"}],
+  "projects": [{"name": "Nome Projeto", "update": "atualização"}],
+  "pending": [{"text": "descrição", "owner": "quem", "deadline": "quando"}]
+}
+Use arrays vazios se não houver itens daquela categoria.
+Tipo de lessons: "strategic" para permanentes, "tactical" para temporárias.
+Texto:
+---

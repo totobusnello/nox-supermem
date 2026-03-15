@@ -1,0 +1,22 @@
+{
+  "workspace": "~/.openclaw/workspace",
+  "ollama": {
+    "url": "http://localhost:11434",
+    "model": "llama3.2:3b"
+  },
+  "notion": {
+    "enabled": false,
+    "token": "ntn_seu_token_aqui",
+    "databaseId": "id_do_seu_database_notion",
+    "apiVersion": "2025-09-03"
+  },
+  "consolidation": {
+    "maxFilesPerRun": 5,
+    "timeoutMs": 120000,
+    "retries": 3
+  },
+  "watcher": {
+    "debounceMs": 3000,
+    "excludeFiles": ["MEMORY.md", "SESSION-STATE.md"]
+  }
+}
