@@ -28,7 +28,7 @@ step() { echo -e "\n${BOLD}${BLUE}━━ $* ${RESET}" | tee -a "$LOG_FILE"; }
 dry()  { echo -e "${YELLOW}[DRY]${RESET} $*"; }
 
 run() {
-  if $DRY_RUN; then dry "$*"; else eval "$*" >> "$LOG_FILE" 2>&1 || err "Falhou: $*  (veja $LOG_FILE)"; fi
+  if $DRY_RUN; then dry "$*"; else "$@" >> "$LOG_FILE" 2>&1 || err "Falhou: $*  (veja $LOG_FILE)"; fi
 }
 
 # --- Banner ---
@@ -83,7 +83,7 @@ if ! command -v node &>/dev/null; then
   err "Node.js não encontrado. Instale Node.js 20+ antes de continuar."
 fi
 
-NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1)
+NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1 || true)
 if [[ "$NODE_VERSION" -lt 20 ]]; then
   err "Node.js $NODE_VERSION encontrado. Requer Node.js 20+. Atualize em: https://nodejs.org"
 fi
@@ -99,11 +99,11 @@ if command -v inotifywait &>/dev/null; then
 else
   info "Instalando inotify-tools..."
   if command -v apt-get &>/dev/null; then
-    run "apt-get install -y inotify-tools"
+    run apt-get install -y inotify-tools
   elif command -v yum &>/dev/null; then
-    run "yum install -y inotify-tools"
+    run yum install -y inotify-tools
   elif command -v dnf &>/dev/null; then
-    run "dnf install -y inotify-tools"
+    run dnf install -y inotify-tools
   else
     warn "Gerenciador de pacotes não reconhecido. Instale inotify-tools manualmente."
   fi
@@ -119,15 +119,41 @@ if command -v ollama &>/dev/null; then
   log "Ollama já instalado ($(ollama --version 2>/dev/null || echo 'versão desconhecida'))"
 else
   info "Instalando Ollama..."
-  run "curl -fsSL https://ollama.com/install.sh | sh"
+  run bash -c 'curl -fsSL https://ollama.com/install.sh | sh'
   log "Ollama instalado"
 fi
 
 # Garantir que Ollama está rodando
 if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
   info "Iniciando Ollama..."
-  run "ollama serve &"
-  sleep 3
+  if $DRY_RUN; then
+    dry "ollama serve &"
+  else
+    ollama serve >> "$LOG_FILE" 2>&1 &
+    # Aguardar Ollama ficar pronto (até 10 tentativas, 1s cada)
+    for i in $(seq 1 10); do
+      curl -s http://localhost:11434/api/tags &>/dev/null && break
+      [[ "$i" -eq 10 ]] && err "Ollama não respondeu após 10 tentativas"
+      sleep 1
+    done
+  fi
+fi
+
+# Bind Ollama apenas em localhost e bloquear porta via firewall
+if $DRY_RUN; then
+  dry "Configurar OLLAMA_HOST=127.0.0.1 no systemd override"
+  dry "ufw deny 11434"
+else
+  if command -v systemctl &>/dev/null; then
+    mkdir -p /etc/systemd/system/ollama.service.d
+    cat > /etc/systemd/system/ollama.service.d/override.conf << 'OLLAMAEOF'
+[Service]
+Environment="OLLAMA_HOST=127.0.0.1"
+OLLAMAEOF
+    systemctl daemon-reload
+    systemctl restart ollama 2>/dev/null || true
+  fi
+  ufw deny 11434 >> "$LOG_FILE" 2>&1 || true
 fi
 
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
@@ -200,12 +226,13 @@ step "Etapa 7/9 — Build (npm install + compilar TypeScript)"
 if $DRY_RUN; then
   dry "cd $NOX_MEM_DEST && npm install && npm run build"
 else
-  cd "$NOX_MEM_DEST"
-  info "Instalando dependências..."
-  npm install --silent 2>&1 | tee -a "$LOG_FILE" | tail -1 || err "npm install falhou (veja $LOG_FILE)"
-  info "Compilando TypeScript..."
-  npm run build 2>&1 | tee -a "$LOG_FILE" | tail -3 || err "Build falhou (veja $LOG_FILE)"
-  cd "$SCRIPT_DIR"
+  (
+    cd "$NOX_MEM_DEST"
+    info "Instalando dependências..."
+    npm install --silent 2>&1 | tee -a "$LOG_FILE" | tail -1 || err "npm install falhou (veja $LOG_FILE)"
+    info "Compilando TypeScript..."
+    npm run build 2>&1 | tee -a "$LOG_FILE" | tail -3 || err "Build falhou (veja $LOG_FILE)"
+  )
 fi
 log "Build concluído"
 
@@ -262,9 +289,16 @@ else
 
   mkdir -p "$WORKSPACE/logs"
 
-  # Adicionar crons apenas se não existirem
-  (crontab -l 2>/dev/null | grep -v "nox-mem consolidate" | grep -v "nox-mem digest"; \
-    echo "$CRON_CONSOLIDATE"; echo "$CRON_DIGEST") | crontab -
+  # Adicionar crons usando markers únicos (idempotente)
+  CRON_MARKER_START="# NOX-SUPERMEM-CRON-START"
+  CRON_MARKER_END="# NOX-SUPERMEM-CRON-END"
+  (
+    crontab -l 2>/dev/null | sed "/$CRON_MARKER_START/,/$CRON_MARKER_END/d"
+    echo "$CRON_MARKER_START"
+    echo "$CRON_CONSOLIDATE"
+    echo "$CRON_DIGEST"
+    echo "$CRON_MARKER_END"
+  ) | crontab -
 
   # Reindex inicial
   info "Indexando memória existente..."
