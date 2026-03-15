@@ -1,4 +1,5 @@
-import { getDb, DB_PATH } from "./db.js";
+import { getDb } from "./db.js";
+import { getConfig } from "./config.js";
 import { statSync, existsSync } from "fs";
 
 export async function doctor(): Promise<void> {
@@ -8,7 +9,7 @@ export async function doctor(): Promise<void> {
   try {
     const db = getDb();
     const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined;
-    checks.push({ name: "SQLite DB", status: "✅", detail: `schema v${version?.value || "?"}, ${formatSize(DB_PATH)}` });
+    checks.push({ name: "SQLite DB", status: "✅", detail: `schema v${version?.value || "?"}, ${formatSize(getConfig().dbPath)}` });
 
     // 2. FTS5 index
     const ftsCount = (db.prepare("SELECT COUNT(*) as c FROM chunks_fts").get() as { c: number }).c;

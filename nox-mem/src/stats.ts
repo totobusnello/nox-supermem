@@ -1,4 +1,5 @@
-import { getDb, DB_PATH } from "./db.js";
+import { getDb } from "./db.js";
+import { getConfig } from "./config.js";
 import { statSync } from "fs";
 
 export function getStats(): string {
@@ -22,7 +23,7 @@ export function getStats(): string {
 
   let dbSize = "0 B";
   try {
-    const bytes = statSync(DB_PATH).size;
+    const bytes = statSync(getConfig().dbPath).size;
     dbSize = bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
   } catch {}
 
