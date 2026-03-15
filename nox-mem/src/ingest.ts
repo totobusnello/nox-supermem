@@ -4,7 +4,9 @@ import Database from "better-sqlite3";
 import { getDb } from "./db.js";
 
 // TODO: replace with getConfig().workspace (see config.ts)
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE ?? `${process.env.HOME}/.openclaw/workspace`;
+import { getConfig } from "./config.js";
+
+const WORKSPACE = () => getConfig().workspace;
 
 const TYPE_MAP: Record<string, string> = {
   "memory/decisions.md": "decision",
@@ -112,7 +114,7 @@ function sanitizeUtf8(text: string): string {
  */
 export function ingestFile(filePath: string, externalDb?: Database.Database, skipDelete?: boolean): { chunks: number } {
   const db = externalDb || getDb();
-  const relPath = relative(WORKSPACE, filePath);
+  const relPath = relative(WORKSPACE(), filePath);
   let content = readFileSync(filePath, "utf-8");
   if (!content.trim()) {
     if (!externalDb) db.close();

@@ -4,7 +4,9 @@ import { readdirSync } from "fs";
 import { join, resolve } from "path";
 
 // TODO: replace with getConfig().workspace (see config.ts)
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE ?? `${process.env.HOME}/.openclaw/workspace`;
+import { getConfig } from "./config.js";
+
+const WORKSPACE = () => getConfig().workspace;
 
 function findFiles(dir: string, extensions: string[]): string[] {
   const results: string[] = [];
@@ -29,8 +31,8 @@ export function reindex(): { files: number; chunks: number } {
   db.exec("DELETE FROM chunks");
   db.exec("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')");
 
-  const memoryFiles = findFiles(resolve(WORKSPACE, "memory"), [".md", ".json"]);
-  const sharedFiles = findFiles(resolve(WORKSPACE, "shared"), [".md"]);
+  const memoryFiles = findFiles(resolve(WORKSPACE(), "memory"), [".md", ".json"]);
+  const sharedFiles = findFiles(resolve(WORKSPACE(), "shared"), [".md"]);
   const allFiles = [...memoryFiles, ...sharedFiles];
   let totalChunks = 0;
 

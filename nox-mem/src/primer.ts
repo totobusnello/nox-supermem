@@ -3,7 +3,9 @@ import { resolve } from "path";
 import { getDb } from "./db.js";
 
 // TODO: replace with getConfig().workspace (see config.ts)
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE ?? `${process.env.HOME}/.openclaw/workspace`;
+import { getConfig } from "./config.js";
+
+const WORKSPACE = () => getConfig().workspace;
 
 /**
  * Extract a clean summary line from a decision chunk.
@@ -42,7 +44,7 @@ export function primer(): string {
 
   // 1. SESSION-STATE.md — active task
   try {
-    const ss = readFileSync(resolve(WORKSPACE, "SESSION-STATE.md"), "utf-8");
+    const ss = readFileSync(resolve(WORKSPACE(), "SESSION-STATE.md"), "utf-8");
     const activeTask = ss.match(/## 🔴 Tarefa Ativa\n([\s\S]*?)(?=\n## )/)?.[1]?.trim();
     sections.push(
       activeTask && activeTask !== "_Nada em andamento no momento._"
