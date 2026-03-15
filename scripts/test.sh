@@ -42,13 +42,19 @@ else
 fi
 
 # 7. Crons — consolidação agendada
-crontab -l 2>/dev/null | grep -q nox-mem-consolidate && pass "cron de consolidação configurado" || warn "cron de consolidação não encontrado"
+crontab -l 2>/dev/null | grep -q "nox-mem consolidate" && pass "cron de consolidação configurado" || warn "cron de consolidação não encontrado"
 
 # 8. Reindex — integridade do índice
 nox-mem reindex --dry-run 2>/dev/null || nox-mem reindex &>/dev/null || fail "nox-mem reindex falhou"
 pass "nox-mem reindex OK"
 
-# 9. Ollama — modelo de embedding acessível
+# 9. Teste de ingest (cria nota temporária e ingere)
+TEST_NOTE="/tmp/nox-mem-test-$$.md"
+echo "# Teste Forge\nDecisão de teste: ingest funcionando em $(date)" > "$TEST_NOTE"
+nox-mem ingest "$TEST_NOTE" &>/dev/null && pass "ingest: nota de teste ingerida" || fail "ingest: falhou"
+rm -f "$TEST_NOTE"
+
+# 10. Ollama — modelo de embedding acessível
 curl -sf http://localhost:11434/api/tags &>/dev/null && pass "Ollama acessível" || warn "Ollama não acessível (servidor offline?)"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

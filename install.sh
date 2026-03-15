@@ -83,7 +83,10 @@ if ! command -v node &>/dev/null; then
   err "Node.js não encontrado. Instale Node.js 20+ antes de continuar."
 fi
 
-NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1 || true)
+NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
+if [[ -z "$NODE_VERSION" ]] || ! [[ "$NODE_VERSION" =~ ^[0-9]+$ ]]; then
+  err "Não foi possível determinar a versão do Node.js. Verifique se node está instalado."
+fi
 if [[ "$NODE_VERSION" -lt 20 ]]; then
   err "Node.js $NODE_VERSION encontrado. Requer Node.js 20+. Atualize em: https://nodejs.org"
 fi
@@ -118,6 +121,10 @@ step "Etapa 4/9 — Instalar Ollama e modelo de IA"
 if command -v ollama &>/dev/null; then
   log "Ollama já instalado ($(ollama --version 2>/dev/null || echo 'versão desconhecida'))"
 else
+  TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 0)
+  if [[ "$TOTAL_RAM_MB" -lt 2048 ]]; then
+    warn "RAM disponível: ${TOTAL_RAM_MB}MB. Ollama requer mínimo 2GB. O modelo pode travar em VPS com pouca memória."
+  fi
   info "Instalando Ollama..."
   run bash -c 'curl -fsSL https://ollama.com/install.sh | sh'
   log "Ollama instalado"
@@ -153,7 +160,11 @@ OLLAMAEOF
     systemctl daemon-reload
     systemctl restart ollama 2>/dev/null || true
   fi
-  ufw deny 11434 >> "$LOG_FILE" 2>&1 || true
+  if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+    ufw deny 11434 &>/dev/null && log "ufw: porta 11434 bloqueada" || warn "ufw: falha ao bloquear porta 11434"
+  else
+    warn "ufw não está ativo — recomendado bloquear a porta 11434 manualmente: ufw allow 11434 ... depois ufw deny 11434"
+  fi
 fi
 
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
@@ -215,7 +226,9 @@ else
 }
 JSONEOF
   fi
+  chmod 600 "$CONFIG_FILE"
   log "config.json criado"
+  log "Permissões do config.json: 600 (somente dono)"
 fi
 
 # =============================================================================
