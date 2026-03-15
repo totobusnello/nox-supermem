@@ -20,6 +20,19 @@ info() { echo -e "${BLUE}[→]${RESET} $*"; }
 
 mkdir -p "$OUT"
 
+# Gera checksums internos (README-checksums.txt) e externo (.sha256) do ZIP
+seal_zip() {
+  local dir="$1" zipfile="$2"
+  # README-checksums.txt dentro do ZIP — hash de cada arquivo incluído
+  (cd "$dir" && find . -type f ! -name '.DS_Store' -exec sha256sum {} + | sort) \
+    > "$dir/README-checksums.txt"
+  cd "$OUT" && zip -r "$zipfile" "$(basename "$dir")/" -x "*.DS_Store"
+  rm -rf "$dir"
+  # SHA256 do próprio ZIP
+  (cd "$OUT" && sha256sum "$zipfile" > "$zipfile.sha256")
+  log "SHA256 → $OUT/$zipfile.sha256"
+}
+
 # Conteúdo base (comum a todos os tiers)
 copy_base() {
   local dir="$1"
@@ -38,8 +51,9 @@ build_tier_a() {
   local dir="$OUT/nox-supermem-tier-a-v$VERSION"
   rm -rf "$dir" && mkdir -p "$dir"
   copy_base "$dir"
-  cd "$OUT" && zip -r "nox-supermem-tier-a-v$VERSION.zip" "nox-supermem-tier-a-v$VERSION/" -x "*.DS_Store" && rm -rf "$dir"
-  log "Tier A → $OUT/nox-supermem-tier-a-v$VERSION.zip"
+  local zipfile="nox-supermem-tier-a-v$VERSION.zip"
+  seal_zip "$dir" "$zipfile"
+  log "Tier A → $OUT/$zipfile"
 }
 
 build_tier_b() {
@@ -50,8 +64,9 @@ build_tier_b() {
   # Adiciona: 3 perfis + FAQ
   [[ -d "$ROOT/perfis" ]]          && cp -r "$ROOT/perfis"          "$dir/"
   [[ -d "$ROOT/troubleshooting" ]] && cp -r "$ROOT/troubleshooting" "$dir/"
-  cd "$OUT" && zip -r "nox-supermem-tier-b-v$VERSION.zip" "nox-supermem-tier-b-v$VERSION/" -x "*.DS_Store" && rm -rf "$dir"
-  log "Tier B → $OUT/nox-supermem-tier-b-v$VERSION.zip"
+  local zipfile="nox-supermem-tier-b-v$VERSION.zip"
+  seal_zip "$dir" "$zipfile"
+  log "Tier B → $OUT/$zipfile"
 }
 
 build_tier_c() {
@@ -63,8 +78,9 @@ build_tier_c() {
   [[ -d "$ROOT/perfis" ]]          && cp -r "$ROOT/perfis"          "$dir/"
   [[ -d "$ROOT/troubleshooting" ]] && cp -r "$ROOT/troubleshooting" "$dir/"
   [[ -d "$ROOT/suporte" ]]         && cp -r "$ROOT/suporte"         "$dir/"
-  cd "$OUT" && zip -r "nox-supermem-tier-c-v$VERSION.zip" "nox-supermem-tier-c-v$VERSION/" -x "*.DS_Store" && rm -rf "$dir"
-  log "Tier C → $OUT/nox-supermem-tier-c-v$VERSION.zip"
+  local zipfile="nox-supermem-tier-c-v$VERSION.zip"
+  seal_zip "$dir" "$zipfile"
+  log "Tier C → $OUT/$zipfile"
 }
 
 TARGET="${1:-all}"
@@ -84,4 +100,4 @@ esac
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}✅ ZIPs gerados em $OUT/${RESET}"
-ls -lh "$OUT/"*.zip 2>/dev/null || true
+ls -lh "$OUT/"*.zip "$OUT/"*.sha256 2>/dev/null || true
