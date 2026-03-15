@@ -65,8 +65,10 @@ function isDuplicate(text: string): boolean {
 
 function gitCommit(message: string): void {
   try {
-    execFileSync("git", ["-C", getConfig().workspace, "add", "memory/", "MEMORY.md"], { stdio: "pipe" });
-    execFileSync("git", ["-C", getConfig().workspace, "commit", "-m", message], { stdio: "pipe" });
+    const ws = getConfig().workspace;
+    const memFiles = ["memory/decisions.md", "memory/lessons.md", "memory/people.md", "memory/projects.md", "memory/pending.md"];
+    execFileSync("git", ["-C", ws, "add", ...memFiles, "MEMORY.md"], { stdio: "pipe" });
+    execFileSync("git", ["-C", ws, "-c", "commit.gpgsign=false", "commit", "-m", message, "--author=nox-mem-bot <nox-mem@local>"], { stdio: "pipe" });
     console.log(`[INFO] Git commit: ${message}`);
   } catch {
     // No changes to commit — not critical
