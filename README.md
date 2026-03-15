@@ -52,6 +52,16 @@ bash install.sh --dry-run
 
 ---
 
+## Tiers
+
+| Tier | O que inclui | Preço |
+|---|---|---|
+| **A — Kit Técnico** | Código + install.sh + Guia completo + Templates | R$147 |
+| **B — Kit Completo** | Tudo do A + 3 Perfis de agente + FAQ (20+ problemas) | R$197 |
+| **C — Kit + Suporte** | Tudo do B + Suporte por 7 dias (chatbot + email) | R$227 |
+
+---
+
 ## O que está incluído
 
 ```
