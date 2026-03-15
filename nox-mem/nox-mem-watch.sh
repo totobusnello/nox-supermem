@@ -2,9 +2,10 @@
 # Debounced file watcher for nox-mem auto-indexation
 # Uses lock file for reliable debounce (no subshell variable issues)
 
+WORKSPACE="${OPENCLAW_WORKSPACE:-$(openclaw config get workspace 2>/dev/null || echo "$HOME/.openclaw/workspace")}"
 WATCH_DIRS=(
-    "/root/.openclaw/workspace/memory"
-    "/root/.openclaw/workspace/shared"
+    "$WORKSPACE/memory"
+    "$WORKSPACE/shared"
 )
 LOCK_DIR="/tmp/nox-mem-locks"
 DEBOUNCE_SEC=3
