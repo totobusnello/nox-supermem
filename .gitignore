@@ -9,3 +9,13 @@ config.json
 .env
 *.log
 nox-supermem-tier-*.zip
+
+# Claude Code — local state (não versionar)
+.claude/settings.local.json
+.claude/*.lock
+.claude/cache/
+.claude/state/
+.claude/tasks/
+
+# graphify-out — tool output (~280KB) regenerável
+graphify-out/
