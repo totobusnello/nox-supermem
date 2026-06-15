@@ -1,341 +1,314 @@
 # Guia de Instalação — NOX-Supermem
-### Do zero ao agente com memória inteligente em 30 minutos
+### Motor de memória híbrida para agentes de IA — instalação standalone
 
 ---
 
-## Visão Geral
+## O que é o nox-mem
 
-Este guia tem duas partes:
+O nox-mem é um motor de memória para agentes AI: ele indexa arquivos Markdown, constrói um grafo de conhecimento e expõe busca híbrida (FTS5 + embeddings semânticos + RRF). Roda como processo Node.js em qualquer VPS Linux. **Não depende do OpenClaw** — pode ser usado com qualquer agente.
 
-- **Parte 1 — Fundação:** criar a VPS e instalar o OpenClaw (base do agente)
-- **Parte 2 — SuperMem:** instalar o NOX-Supermem (o upgrade de memória)
-
-Se você já tem OpenClaw rodando, pule direto para a [Parte 2](#parte-2--supermem).
+**Não existe pacote publicado no npm.** A instalação é via tarball ou clone do repositório.
 
 ---
 
-# PARTE 1 — FUNDAÇÃO: OpenClaw
+## Pré-requisitos
 
-## Seção 1 — Criar a VPS
-
-### Requisitos mínimos
-- **RAM:** 4GB (recomendado 8GB para modelos maiores)
-- **Disco:** 20GB SSD
-- **OS:** Ubuntu 22.04 LTS
-- **Acesso:** SSH root
-
-### Opções de VPS recomendadas
-- **Hostinger VPS** (R$35-70/mês) — melhor custo-benefício no Brasil
-- **DigitalOcean Droplet** (US$24/mês) — confiável, boa documentação
-- **Vultr** (US$24/mês) — performance sólida
-
-### Após criar a VPS
-Você receberá um IP e senha root por email. Anote:
-```
-IP: xxx.xxx.xxx.xxx
-Usuário: root
-Senha: (gerada pela plataforma)
-```
+| Requisito | Mínimo | Notas |
+|---|---|---|
+| SO | Ubuntu 22.04 LTS | Debian 11+ e CentOS 8+ também funcionam |
+| RAM | 2 GB | 4 GB+ recomendado para KG extraction |
+| Disco | 10 GB | Cresce com o volume de memória |
+| Node.js | 20+ | Ver instruções abaixo |
+| build-essential | qualquer | Requerido pelo `better-sqlite3` (addon nativo) |
+| python3 | 3.8+ | Requerido por `@xenova/transformers` |
 
 ---
 
-## Seção 2 — Acessar via SSH
+## Seção 1 — Preparar o servidor
 
-**No terminal do seu computador:**
 ```bash
-ssh root@SEU-IP-AQUI
-```
-
-Se pedir confirmação de fingerprint, digite `yes`.
-
-**Primeira coisa a fazer — atualizar o sistema:**
-```bash
+# Atualizar pacotes
 apt-get update && apt-get upgrade -y
+
+# Instalar dependências de build
+apt-get install -y build-essential python3 python3-pip inotify-tools
 ```
 
 ---
 
-## Seção 3 — Instalar Node.js 20
-
-> ⚠️ **Aviso de segurança:** O comando abaixo usa o padrão `curl | bash` — ele baixa e executa um script diretamente da internet. Isso é conveniente, mas exige confiança no domínio `nodesource.com`. Se preferir uma abordagem mais segura, baixe o script primeiro, inspecione e depois execute: `curl -fsSL https://deb.nodesource.com/setup_20.x -o setup_node.sh && cat setup_node.sh && bash setup_node.sh`
+## Seção 2 — Instalar Node.js 20+
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt-get install -y nodejs
-```
 
-**Verificar:**
-```bash
-node --version
-# Esperado: v20.x.x ou superior
-```
-
----
-
-## Seção 4 — Instalar OpenClaw
-
-```bash
-npm install -g openclaw
-```
-
-**Verificar:**
-```bash
-openclaw --version
-```
-
-**Configurar o agente:**
-```bash
-openclaw setup
-```
-
-Siga as instruções na tela:
-- Defina o nome do agente
-- Configure a chave de API do Claude (Anthropic)
-- Escolha o workspace (padrão: `~/.openclaw/workspace`)
-
-**Testar:**
-```bash
-openclaw status
+# Verificar
+node --version   # v20.x.x ou superior
+npm --version
 ```
 
 ---
 
-## Seção 5 — Configurar o agente base
+## Seção 3 — Obter o nox-mem
 
-Copie os templates para o workspace do seu agente:
+### Opção A — Tarball (distribuição)
 
 ```bash
-# Localizar seu agente (substituir "meu-agente" pelo nome que você criou)
-AGENT_DIR=~/.openclaw/agents/meu-agente
-
-# Copiar templates do Supermem
-cp templates/SOUL.md $AGENT_DIR/
-cp templates/MEMORY.md $AGENT_DIR/
-cp templates/HEARTBEAT.md $AGENT_DIR/
-cp templates/IDENTITY.md $AGENT_DIR/
-cp templates/TOOLS.md $AGENT_DIR/
-cp templates/SESSION-STATE.md $AGENT_DIR/
+# Descompactar o tarball recebido
+tar -xzf nox-supermem-*.tar.gz
+cd nox-supermem-*/
 ```
 
-**Personalizar o agente:**
-Edite `$AGENT_DIR/SOUL.md` e substitua os placeholders `[seu nome aqui]` com sua identidade.
+### Opção B — Clone do repositório (build manual)
+
+```bash
+git clone https://github.com/totobusnello/nox-supermem.git
+cd nox-supermem/
+```
 
 ---
 
-# PARTE 2 — SUPERMEM: O Upgrade de Memória
-
-> **Por que o SuperMem?**
-> O OpenClaw tem memória básica em Markdown — sem busca, sem consolidação automática, e perde contexto após compactação. O SuperMem resolve isso com um índice SQLite + FTS5 + IA local.
-
----
-
-## Seção 6 — Instalar o SuperMem (1 comando)
-
-Dentro da pasta do kit que você baixou:
+## Seção 4 — Instalar (1 comando)
 
 ```bash
 bash install.sh
 ```
 
-**O que acontece automaticamente:**
-1. ✅ Detecta seu workspace OpenClaw
-2. ✅ Verifica Node.js 20+
-3. ✅ Instala inotify-tools (monitoramento de arquivos)
-4. ✅ Instala Ollama e baixa o modelo llama3.2:3b
-5. ✅ Copia e compila o nox-mem no workspace
-6. ✅ Cria `config.json` com seu workspace
-7. ✅ Cria o comando global `nox-mem`
-8. ✅ Ativa o watcher automático (systemd)
-9. ✅ Configura crons: consolidate às 23h e digest domingo às 21h
+**O que acontece:**
+1. Verifica Node.js >= 20 e dependências de sistema
+2. Executa `npm ci` + `tsc` dentro de `nox-mem/`
+3. Instala globalmente com `npm install -g .` (o comando `nox-mem` fica disponível)
+4. Cria `.env` a partir do `.env.example` (você precisa preencher)
+5. Instala watcher systemd (opcional, se systemd disponível)
+6. Configura crons: consolidate às 23h e vectorize a cada 4h (opcionais)
 
-**Tempo estimado:** 10-20 minutos (na primeira vez, o download do modelo Ollama demora mais)
-
-**Modo preview (sem instalar nada):**
+**Preview sem instalar nada:**
 ```bash
 bash install.sh --dry-run
 ```
 
 ---
 
-## Seção 7 — Verificar a instalação
+## Seção 5 — Configurar variáveis de ambiente
+
+O instalador cria `nox-mem/.env`. Edite-o e preencha no mínimo:
 
 ```bash
-nox-mem doctor
+nano nox-mem/.env
 ```
 
-**Output esperado (todos verdes):**
-```
-✅ Ollama: online (llama3.2:3b)
-✅ SQLite: schema v2
-✅ Workspace: /root/.openclaw/workspace
-✅ Watcher: ativo
-✅ Crons: configurados
+Variáveis obrigatórias:
+
+```bash
+GEMINI_API_KEY=AIz...      # https://aistudio.google.com/apikey
+NOX_DB_PATH=/root/nox-mem.db
+NOX_MEM_DIR=/root/memory    # diretório com seus arquivos .md
+NOX_API_TOKEN=              # gerar: openssl rand -hex 32
 ```
 
-Se algum item aparecer com ⚠️, consulte o `troubleshooting/FAQ.md`.
+Depois de preencher, source o arquivo:
+
+```bash
+set -a; source nox-mem/.env; set +a
+```
+
+> **Nota sobre a chave Gemini:** o saldo prepaid é por projeto GCP, não por chave. Se você receber erro 429 com uma chave nova, o projeto pode estar sem saldo.
 
 ---
 
-## Seção 8 — Testar a busca
-
-Primeiro, indexe os arquivos existentes do seu workspace:
+## Seção 6 — Verificar a instalação
 
 ```bash
+# Verificar que o comando existe
+nox-mem --help
+
+# Indexar arquivos existentes no NOX_MEM_DIR
 nox-mem reindex
+
+# Iniciar a API
+nox-mem serve &
+
+# Health check — vectorCoverage deve ser >= 0.99
+curl -s http://127.0.0.1:18802/api/health | jq .vectorCoverage
 ```
 
-Agora teste a busca:
+Se `vectorCoverage` estiver abaixo de 0.99, rode:
 
 ```bash
-nox-mem search "OpenClaw"
-nox-mem search "agente"
+nox-mem vectorize
 ```
 
-Ver estatísticas do índice:
+---
+
+## Seção 7 — Multi-provider (alternativa ao Gemini)
+
+Por padrão o nox-mem usa Gemini via AI Studio. Para usar outro provider (DeepSeek, OpenRouter, Ollama local, etc.), adicione ao `.env`:
+
+```bash
+# LLM (raciocínio e consolidação)
+NOX_LLM_PROVIDER=openai-compat
+NOX_LLM_BASE_URL=https://openrouter.ai/api/v1
+NOX_LLM_MODEL=deepseek/deepseek-chat
+NOX_LLM_API_KEY=sk-...
+
+# Embeddings
+NOX_EMBED_PROVIDER=openai-compat
+NOX_EMBED_BASE_URL=https://openrouter.ai/api/v1
+NOX_EMBED_MODEL=text-embedding-3-small
+NOX_EMBED_API_KEY=sk-...
+```
+
+A troca é feita em runtime — não precisa recompilar.
+
+---
+
+## Seção 8 — Usar o motor
+
+### Busca
+
+```bash
+nox-mem search "decisão de arquitetura"
+nox-mem search "erro prod" --limit 10
+```
+
+### Ingerir arquivos
+
+```bash
+# Markdown convencional
+nox-mem ingest /root/memory/2026-06-15.md
+
+# Entity file (formato frontmatter + compiled + timeline)
+nox-mem ingest-entity /root/memory/entities/person/toto.md
+```
+
+### Estatísticas
 
 ```bash
 nox-mem stats
+# Mostra: chunks, vetores, entidades KG, cobertura
+```
+
+### Grafo de conhecimento
+
+```bash
+nox-mem kg-build          # extrai entidades e relações com Gemini
+nox-mem kg-search "nome"  # busca no grafo
+```
+
+### API HTTP (porta 18802)
+
+```bash
+# Busca via API
+curl -H "Authorization: Bearer $NOX_API_TOKEN" \
+     "http://127.0.0.1:18802/api/search?q=query"
+
+# Health
+curl http://127.0.0.1:18802/api/health | jq .
 ```
 
 ---
 
-## Seção 9 — Configurar o SOUL.md do agente
+## Seção 9 — Backups e operações destrutivas
 
-Adicione ao `SOUL.md` do seu agente para ativar o SuperMem:
+O nox-mem cria snapshots automáticos antes de qualquer operação destrutiva (`reindex`, `consolidate`, `compact`, `crystallize`, `kg-prune`). Os snapshots ficam em `$NOX_PRE_OP_SNAPSHOT_DIR` (padrão: `/var/backups/nox-mem/pre-op/`), retenção 7 dias.
 
-```markdown
-## Memória (SuperMem)
-Ao iniciar TODA sessão, executar obrigatoriamente:
-\`\`\`bash
-nox-mem primer
-\`\`\`
+**NÃO restaure com `cp snapshot.db nox-mem.db`** — isso corrompe o WAL. Use o flag `--restore` ou a função `safeRestore()` interna.
 
-Para buscar informações anteriores:
-\`\`\`bash
-nox-mem search "palavra-chave"
-\`\`\`
+Para testar qualquer operação destrutiva sem mutar dados:
+
+```bash
+nox-mem reindex --dry-run
+nox-mem kg-prune --dry-run
 ```
 
 ---
 
-## Seção 10 — Criar a primeira nota diária
+## Seção 10 — Crons automáticos
 
-O SuperMem funciona a partir de notas diárias em Markdown:
+O instalador sugere dois crons:
 
-```bash
-# Criar nota do dia
-nano ~/.openclaw/workspace/memory/2026-03-15.md
+```
+0 23 * * *   nox-mem consolidate >> /var/log/nox-mem/nox-mem.log 2>&1
+0 */4 * * *  nox-mem vectorize   >> /var/log/nox-mem/nox-mem.log 2>&1
 ```
 
-**Formato recomendado:**
-```markdown
-# 2026-03-15
-
-## Decisões
-- Decidi usar TypeScript para o projeto X por ser mais seguro que JS puro
-
-## Aprendizados
-- Descobri que o FTS5 suporta busca por prefixo: nox-mem search "deci*"
-
-## Pendências
-- [ ] Revisar configuração do Ollama até sexta
-```
-
-Salve o arquivo — o watcher detecta a mudança e indexa automaticamente em ~3 segundos.
-
----
-
-## Seção 11 — Testar a consolidação com IA
-
-Após criar algumas notas diárias (1-3 dias), rode a consolidação manual:
+Verificar:
 
 ```bash
-nox-mem consolidate
-```
+crontab -l | grep -A5 NOX-SUPERMEM
 
-**O que acontece:**
-1. Ollama lê as notas do dia
-2. Extrai decisões, lições, pessoas, projetos e pendências
-3. Salva nos arquivos `memory/decisions.md`, `memory/lessons.md`, etc.
-4. Faz commit automático no git
-
-**Verificar resultado:**
-```bash
-cat ~/.openclaw/workspace/memory/decisions.md
-cat ~/.openclaw/workspace/memory/lessons.md
+tail -f /var/log/nox-mem/nox-mem.log
 ```
 
 ---
 
-## Seção 12 — Testar o primer (recovery)
+## Seção 11 — Watcher de arquivos (tempo real)
 
-O primer é o que garante que seu agente nunca perde contexto após compactação:
-
-```bash
-nox-mem primer
-```
-
-**Output:** resumo de ~500 tokens com as decisões, lições e pendências mais recentes. Cole isso no início da sessão do agente quando ele precisar de contexto.
-
----
-
-## Seção 13 — Verificar crons
-
-```bash
-crontab -l
-```
-
-**Output esperado:**
-```
-0 23 * * * /usr/local/bin/nox-mem consolidate >> ~/.openclaw/workspace/logs/nox-mem.log 2>&1
-0 21 * * 0 /usr/local/bin/nox-mem digest >> ~/.openclaw/workspace/logs/nox-mem.log 2>&1
-```
-
-Ver logs da execução automática:
-```bash
-tail -f ~/.openclaw/workspace/logs/nox-mem.log
-```
-
----
-
-## Seção 14 — Verificar watcher
+Se o systemd instalou o watcher:
 
 ```bash
 systemctl status nox-mem-watcher
 ```
 
-**Output esperado:** `active (running)`
+O watcher detecta qualquer `.md` salvo em `$NOX_MEM_DIR` e ingere automaticamente em ~3 segundos.
 
-Testar: edite qualquer arquivo `.md` em `memory/` e aguarde ~3 segundos. O watcher detecta e indexa automaticamente.
+Logs do watcher:
 
 ```bash
-tail -5 /tmp/nox-mem-watcher.log
+tail -f /tmp/nox-mem-watcher.log
 ```
 
 ---
 
-## Seção 15 — Próximos passos
+## Seção 12 — Troubleshooting
 
-**Seu agente agora tem:**
-- ✅ Busca em <1 segundo em toda a memória
-- ✅ Consolidação automática às 23h com IA local
-- ✅ Digest semanal todo domingo às 21h
-- ✅ Recovery automático pós-compactação
-- ✅ Indexação em tempo real de novas notas
+**`nox-mem: command not found` após instalação**
 
-**Para avançar:**
-
-Se comprou o **Tier B**, explore os perfis prontos em `perfis/`:
 ```bash
-# Copiar perfil de assistente pessoal
-cp perfis/assistente-pessoal/SOUL.md ~/.openclaw/agents/meu-agente/
-cp perfis/assistente-pessoal/HEARTBEAT.md ~/.openclaw/agents/meu-agente/
+# Verificar onde npm instala globalmente
+npm prefix -g
+# Adicionar ao PATH se necessário
+export PATH="$(npm prefix -g)/bin:$PATH"
 ```
 
-**Problemas?**
-- Consulte `troubleshooting/FAQ.md` (20+ problemas resolvidos)
-- Tier C: acesse `suporte/ACESSO-SUPORTE.md` para suporte direto
+**`vectorize` retorna "0 embedded, N errors"**
+
+```bash
+# O env não foi carregado. Verificar:
+echo $GEMINI_API_KEY
+# Recarregar:
+set -a; source nox-mem/.env; set +a
+nox-mem vectorize
+```
+
+**`sqlite-vec` não encontrado / `vec0` não carrega**
+
+O `sqlite-vec` usa binários nativos por plataforma. Após `npm ci`, verifique:
+
+```bash
+ls node_modules/sqlite-vec-linux-x64/  # deve existir um .node ou .so
+```
+
+Se estiver faltando, reinstale com:
+
+```bash
+cd nox-mem && npm ci --include=optional
+```
+
+**API não responde**
+
+```bash
+# Verificar se está rodando
+ps aux | grep "nox-mem serve"
+
+# Verificar a porta
+ss -tlnp | grep 18802
+
+# Iniciar manualmente
+set -a; source nox-mem/.env; set +a
+nox-mem serve
+```
 
 ---
 
-*NOX-Supermem v1.0 | Criado por Toto Busnello*
+*NOX-Supermem | MIT License | github.com/totobusnello/nox-supermem*

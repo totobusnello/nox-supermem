@@ -1,353 +1,244 @@
 #!/usr/bin/env bash
 # =============================================================================
-# NOX-Supermem — Instalador Automatizado
+# NOX-Supermem — Standalone Installer
 # =============================================================================
-# Uso: bash install.sh [--dry-run]
-# Requisitos: VPS Linux, Node.js 20+, OpenClaw instalado
+# Installs the nox-mem engine from this directory (tarball or git clone).
+# Does NOT require OpenClaw. Works on any Linux VPS with Node 20+.
+#
+# Usage:
+#   bash install.sh [--dry-run]
+#
+# What this does:
+#   1. Checks Node.js >= 20 and build-essential
+#   2. Builds nox-mem (npm ci + tsc) inside this repo
+#   3. Installs nox-mem globally (npm install -g .)
+#   4. Writes a .env template if none exists
+#   5. Optional: installs systemd watcher and daily crons
+#
+# What this does NOT do:
+#   - Does NOT install OpenClaw
+#   - Does NOT install Ollama (nox-mem uses Gemini by default)
+#   - Does NOT publish to npm (install is local/tarball only)
 # =============================================================================
 
 set -euo pipefail
 
-# --- Cores ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; BOLD='\033[1m'; RESET='\033[0m'
 
-# --- Flags ---
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
 LOG_FILE="/tmp/nox-supermem-install.log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NOX_MEM_DIR="$SCRIPT_DIR/nox-mem"
 
-# --- Utilitários ---
-log()  { echo -e "${GREEN}[✓]${RESET} $*" | tee -a "$LOG_FILE"; }
-info() { echo -e "${BLUE}[→]${RESET} $*" | tee -a "$LOG_FILE"; }
+log()  { echo -e "${GREEN}[OK]${RESET} $*" | tee -a "$LOG_FILE"; }
+info() { echo -e "${BLUE}[->]${RESET} $*" | tee -a "$LOG_FILE"; }
 warn() { echo -e "${YELLOW}[!]${RESET} $*" | tee -a "$LOG_FILE"; }
-err()  { echo -e "${RED}[✗]${RESET} $*" | tee -a "$LOG_FILE"; exit 1; }
-step() { echo -e "\n${BOLD}${BLUE}━━ $* ${RESET}" | tee -a "$LOG_FILE"; }
+err()  { echo -e "${RED}[ERR]${RESET} $*" | tee -a "$LOG_FILE"; exit 1; }
+step() { echo -e "\n${BOLD}${BLUE}=== $* ===${RESET}" | tee -a "$LOG_FILE"; }
 dry()  { echo -e "${YELLOW}[DRY]${RESET} $*"; }
 
 run() {
-  if $DRY_RUN; then dry "$*"; else "$@" >> "$LOG_FILE" 2>&1 || err "Falhou: $*  (veja $LOG_FILE)"; fi
+  if $DRY_RUN; then dry "$*"; else "$@" >> "$LOG_FILE" 2>&1 || err "Failed: $*  (see $LOG_FILE)"; fi
 }
 
-# --- Banner ---
+# Banner
 echo -e "${BOLD}"
-echo "  ███████╗██╗   ██╗██████╗ ███████╗██████╗ ███╗   ███╗███████╗███╗   ███╗"
-echo "  ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗████╗ ████║██╔════╝████╗ ████║"
-echo "  ███████╗██║   ██║██████╔╝█████╗  ██████╔╝██╔████╔██║█████╗  ██╔████╔██║"
-echo "  ╚════██║██║   ██║██╔═══╝ ██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║"
-echo "  ███████║╚██████╔╝██║     ███████╗██║  ██║██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║"
-echo "  ╚══════╝ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝"
+echo "  NOX-Supermem — Standalone Engine Installer"
+echo "  nox-mem v$(node -e "const p=require('$NOX_MEM_DIR/package.json'); console.log(p.version)" 2>/dev/null || echo '?')"
 echo -e "${RESET}"
-echo -e "  ${BOLD}NOX-Supermem${RESET} — O upgrade de memória do seu agente OpenClaw"
-echo -e "  $([ "$DRY_RUN" = true ] && echo "${YELLOW}MODO DRY-RUN — nenhuma alteração será feita${RESET}" || echo "Iniciando instalação...")"
+echo -e "  $([ "$DRY_RUN" = true ] && echo "${YELLOW}DRY-RUN MODE — no changes will be made${RESET}" || echo "Starting installation...")"
 echo ""
 
 # =============================================================================
-# ETAPA 1 — Detectar workspace
+# STEP 1 — Node.js >= 20
 # =============================================================================
-step "Etapa 1/9 — Detectar workspace OpenClaw"
-
-detect_workspace() {
-  if command -v openclaw &>/dev/null; then
-    local ws
-    ws=$(openclaw config get workspace 2>/dev/null || true)
-    [[ -n "$ws" ]] && echo "$ws" && return
-  fi
-  [[ -n "${OPENCLAW_WORKSPACE:-}" ]] && echo "$OPENCLAW_WORKSPACE" && return
-  local common_paths=(
-    "$HOME/.openclaw/workspace"
-    "/root/.openclaw/workspace"
-    "/home/openclaw/.openclaw/workspace"
-  )
-  for p in "${common_paths[@]}"; do
-    [[ -d "$p" ]] && echo "$p" && return
-  done
-  echo "$HOME/.openclaw/workspace"
-}
-
-WORKSPACE=$(detect_workspace)
-NOX_MEM_DEST="$WORKSPACE/tools/nox-mem"
-CONFIG_FILE="$NOX_MEM_DEST/config.json"
-
-info "Workspace detectado: $WORKSPACE"
-info "Destino de instalação: $NOX_MEM_DEST"
-
-# =============================================================================
-# ETAPA 2 — Verificar Node.js 20+
-# =============================================================================
-step "Etapa 2/9 — Verificar Node.js"
+step "Step 1/5 — Check Node.js"
 
 if ! command -v node &>/dev/null; then
-  err "Node.js não encontrado. Instale Node.js 20+ antes de continuar."
+  err "Node.js not found. Install Node.js 20+ first: https://nodejs.org"
 fi
 
 NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
-if [[ -z "$NODE_VERSION" ]] || ! [[ "$NODE_VERSION" =~ ^[0-9]+$ ]]; then
-  err "Não foi possível determinar a versão do Node.js. Verifique se node está instalado."
+if ! [[ "$NODE_VERSION" =~ ^[0-9]+$ ]] || [[ "$NODE_VERSION" -lt 20 ]]; then
+  err "Node.js $NODE_VERSION found but >= 20 required. See: https://nodejs.org"
 fi
-if [[ "$NODE_VERSION" -lt 20 ]]; then
-  err "Node.js $NODE_VERSION encontrado. Requer Node.js 20+. Atualize em: https://nodejs.org"
-fi
-log "Node.js v$(node --version | sed 's/v//') — OK"
+log "Node.js $(node --version) — OK"
 
 # =============================================================================
-# ETAPA 3 — Instalar inotify-tools
+# STEP 2 — System build deps
 # =============================================================================
-step "Etapa 3/9 — Instalar inotify-tools (file watcher)"
+step "Step 2/5 — System build dependencies"
 
-if command -v inotifywait &>/dev/null; then
-  log "inotifywait já instalado"
-else
-  info "Instalando inotify-tools..."
+MISSING_PKGS=()
+command -v gcc &>/dev/null  || MISSING_PKGS+=(build-essential)
+command -v python3 &>/dev/null || MISSING_PKGS+=(python3)
+
+if [[ ${#MISSING_PKGS[@]} -gt 0 ]]; then
+  info "Installing: ${MISSING_PKGS[*]}"
+  if command -v apt-get &>/dev/null; then
+    run apt-get install -y "${MISSING_PKGS[@]}"
+  elif command -v yum &>/dev/null; then
+    run yum install -y "${MISSING_PKGS[@]}"
+  elif command -v dnf &>/dev/null; then
+    run dnf install -y "${MISSING_PKGS[@]}"
+  else
+    warn "Unknown package manager. Install manually: ${MISSING_PKGS[*]}"
+  fi
+fi
+
+# inotify-tools (optional, only needed for the file watcher)
+if ! command -v inotifywait &>/dev/null; then
+  info "Installing inotify-tools (optional, for file watcher)..."
   if command -v apt-get &>/dev/null; then
     run apt-get install -y inotify-tools
-  elif command -v yum &>/dev/null; then
-    run yum install -y inotify-tools
-  elif command -v dnf &>/dev/null; then
-    run dnf install -y inotify-tools
   else
-    warn "Gerenciador de pacotes não reconhecido. Instale inotify-tools manualmente."
+    warn "inotify-tools not found — file watcher will be disabled. Install manually if needed."
   fi
-  log "inotify-tools instalado"
 fi
+log "System deps — OK"
 
 # =============================================================================
-# ETAPA 4 — Instalar Ollama + modelo
+# STEP 3 — Build nox-mem
 # =============================================================================
-step "Etapa 4/9 — Instalar Ollama e modelo de IA"
+step "Step 3/5 — Build nox-mem (npm ci + tsc)"
 
-if command -v ollama &>/dev/null; then
-  log "Ollama já instalado ($(ollama --version 2>/dev/null || echo 'versão desconhecida'))"
-else
-  TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 0)
-  if [[ "$TOTAL_RAM_MB" -lt 2048 ]]; then
-    warn "RAM disponível: ${TOTAL_RAM_MB}MB. Ollama requer mínimo 2GB. O modelo pode travar em VPS com pouca memória."
-  fi
-  info "Instalando Ollama..."
-  run bash -c 'curl -fsSL https://ollama.com/install.sh | sh'
-  log "Ollama instalado"
+if [[ ! -d "$NOX_MEM_DIR" ]]; then
+  err "nox-mem directory not found at $NOX_MEM_DIR. Run this script from the repo root."
 fi
-
-# Garantir que Ollama está rodando
-if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
-  info "Iniciando Ollama..."
-  if $DRY_RUN; then
-    dry "ollama serve &"
-  else
-    ollama serve >> "$LOG_FILE" 2>&1 &
-    # Aguardar Ollama ficar pronto (até 10 tentativas, 1s cada)
-    for i in $(seq 1 10); do
-      curl -s http://localhost:11434/api/tags &>/dev/null && break
-      [[ "$i" -eq 10 ]] && err "Ollama não respondeu após 10 tentativas"
-      sleep 1
-    done
-  fi
-fi
-
-# Bind Ollama apenas em localhost e bloquear porta via firewall
-if $DRY_RUN; then
-  dry "Configurar OLLAMA_HOST=127.0.0.1 no systemd override"
-  dry "ufw deny 11434"
-else
-  if command -v systemctl &>/dev/null; then
-    mkdir -p /etc/systemd/system/ollama.service.d
-    cat > /etc/systemd/system/ollama.service.d/override.conf << 'OLLAMAEOF'
-[Service]
-Environment="OLLAMA_HOST=127.0.0.1"
-OLLAMAEOF
-    systemctl daemon-reload
-    systemctl restart ollama 2>/dev/null || true
-  fi
-  if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
-    ufw deny 11434 &>/dev/null && log "ufw: porta 11434 bloqueada" || warn "ufw: falha ao bloquear porta 11434"
-  else
-    warn "ufw não está ativo — recomendado bloquear a porta 11434 manualmente: ufw allow 11434 ... depois ufw deny 11434"
-  fi
-fi
-
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
-info "Baixando modelo $OLLAMA_MODEL (pode demorar na primeira vez)..."
-if $DRY_RUN; then
-  dry "ollama pull $OLLAMA_MODEL"
-else
-  ollama pull "$OLLAMA_MODEL" 2>&1 | tee -a "$LOG_FILE" | grep -E "pulling|success|error" || true
-fi
-log "Modelo $OLLAMA_MODEL disponível"
-
-# =============================================================================
-# ETAPA 5 — Copiar nox-mem para o workspace
-# =============================================================================
-step "Etapa 5/9 — Instalar nox-mem no workspace"
 
 if $DRY_RUN; then
-  dry "mkdir -p $NOX_MEM_DEST"
-  dry "cp -r $SCRIPT_DIR/nox-mem/* $NOX_MEM_DEST/"
-else
-  mkdir -p "$NOX_MEM_DEST"
-  cp -r "$SCRIPT_DIR/nox-mem/." "$NOX_MEM_DEST/"
-fi
-log "Arquivos copiados para $NOX_MEM_DEST"
-
-# =============================================================================
-# ETAPA 6 — Criar config.json
-# =============================================================================
-step "Etapa 6/9 — Criar configuração"
-
-if [[ -f "$CONFIG_FILE" ]]; then
-  warn "config.json já existe — mantendo configuração atual"
-else
-  if $DRY_RUN; then
-    dry "Criar config.json em $CONFIG_FILE"
-  else
-    cat > "$CONFIG_FILE" << JSONEOF
-{
-  "workspace": "$WORKSPACE",
-  "ollama": {
-    "url": "http://localhost:11434",
-    "model": "$OLLAMA_MODEL"
-  },
-  "notion": {
-    "enabled": false,
-    "token": "",
-    "databaseId": "",
-    "apiVersion": "2025-09-03"
-  },
-  "consolidation": {
-    "maxFilesPerRun": 5,
-    "timeoutMs": 120000,
-    "retries": 3
-  },
-  "watcher": {
-    "debounceMs": 3000,
-    "excludeFiles": ["MEMORY.md", "SESSION-STATE.md"]
-  }
-}
-JSONEOF
-  fi
-  chmod 600 "$CONFIG_FILE"
-  log "config.json criado"
-  log "Permissões do config.json: 600 (somente dono)"
-fi
-
-# =============================================================================
-# ETAPA 7 — Build (npm install + tsc)
-# =============================================================================
-step "Etapa 7/9 — Build (npm install + compilar TypeScript)"
-
-if $DRY_RUN; then
-  dry "cd $NOX_MEM_DEST && npm install && npm run build"
+  dry "cd $NOX_MEM_DIR && npm ci && npm run build"
 else
   (
-    cd "$NOX_MEM_DEST"
-    info "Instalando dependências..."
-    npm install --silent 2>&1 | tee -a "$LOG_FILE" | tail -1 || err "npm install falhou (veja $LOG_FILE)"
-    info "Compilando TypeScript..."
-    npm run build 2>&1 | tee -a "$LOG_FILE" | tail -3 || err "Build falhou (veja $LOG_FILE)"
+    cd "$NOX_MEM_DIR"
+    info "Installing npm dependencies..."
+    npm ci 2>&1 | tee -a "$LOG_FILE" | tail -3
+    info "Compiling TypeScript..."
+    npm run build 2>&1 | tee -a "$LOG_FILE" | tail -5
   )
 fi
-log "Build concluído"
+log "Build complete"
 
 # =============================================================================
-# ETAPA 8 — Symlink + systemd watcher
+# STEP 4 — Global install
 # =============================================================================
-step "Etapa 8/9 — Configurar comando global e watcher"
+step "Step 4/5 — Install globally (npm install -g)"
 
-# Symlink para /usr/local/bin/nox-mem
-NOX_BIN="$NOX_MEM_DEST/dist/index.js"
 if $DRY_RUN; then
-  dry "ln -sf $NOX_BIN /usr/local/bin/nox-mem"
+  dry "cd $NOX_MEM_DIR && npm install -g ."
 else
-  chmod +x "$NOX_BIN"
-  ln -sf "$NOX_BIN" /usr/local/bin/nox-mem 2>/dev/null || \
-    warn "Não foi possível criar symlink em /usr/local/bin (tente com sudo)"
+  (
+    cd "$NOX_MEM_DIR"
+    npm install -g . 2>&1 | tee -a "$LOG_FILE" | tail -3
+  )
 fi
-log "Comando nox-mem disponível"
 
-# Instalar watcher systemd
-SERVICE_FILE="$NOX_MEM_DEST/nox-mem-watcher.service"
-if [[ -f "$SERVICE_FILE" ]] && command -v systemctl &>/dev/null; then
-  if $DRY_RUN; then
-    dry "Instalar systemd service: nox-mem-watcher"
+# Verify
+if ! $DRY_RUN; then
+  if ! command -v nox-mem &>/dev/null; then
+    warn "nox-mem not found in PATH after global install. Check npm prefix: $(npm prefix -g)/bin"
+    warn "You may need to add it to PATH: export PATH=\"\$(npm prefix -g)/bin:\$PATH\""
   else
-    # Substituir placeholder pelo caminho real
-    WATCH_SCRIPT="$NOX_MEM_DEST/nox-mem-watch.sh"
-    sed "s|__NOX_MEM_PATH__|$NOX_MEM_DEST|g" "$SERVICE_FILE" \
+    log "nox-mem $(nox-mem --version 2>/dev/null | head -1 || echo 'installed') — OK"
+  fi
+fi
+
+# =============================================================================
+# STEP 5 — .env template
+# =============================================================================
+step "Step 5/5 — Environment configuration"
+
+ENV_DEST="$NOX_MEM_DIR/.env"
+ENV_EXAMPLE="$NOX_MEM_DIR/.env.example"
+
+if [[ -f "$ENV_DEST" ]]; then
+  warn ".env already exists at $ENV_DEST — not overwriting"
+else
+  if $DRY_RUN; then
+    dry "Copy .env.example -> .env (fill in GEMINI_API_KEY, NOX_DB_PATH, NOX_MEM_DIR, NOX_API_TOKEN)"
+  else
+    if [[ -f "$ENV_EXAMPLE" ]]; then
+      cp "$ENV_EXAMPLE" "$ENV_DEST"
+      chmod 600 "$ENV_DEST"
+      log ".env created at $ENV_DEST (mode 600)"
+      warn "ACTION REQUIRED: Edit $ENV_DEST and set at minimum:"
+      warn "  GEMINI_API_KEY=  (from https://aistudio.google.com/apikey)"
+      warn "  NOX_DB_PATH=     (e.g. /root/nox-mem.db)"
+      warn "  NOX_MEM_DIR=     (directory with your .md memory files)"
+      warn "  NOX_API_TOKEN=   (generate: openssl rand -hex 32)"
+    else
+      warn ".env.example not found — create $ENV_DEST manually. See nox-mem/README.md."
+    fi
+  fi
+fi
+
+# Optional: systemd watcher
+if command -v systemctl &>/dev/null && [[ -f "$NOX_MEM_DIR/nox-mem-watcher.service" ]]; then
+  info "Installing systemd file watcher (optional)..."
+  if $DRY_RUN; then
+    dry "Install and enable nox-mem-watcher.service"
+  else
+    WATCH_SCRIPT="$NOX_MEM_DIR/nox-mem-watch.sh"
+    sed "s|__NOX_MEM_PATH__|$NOX_MEM_DIR|g" "$NOX_MEM_DIR/nox-mem-watcher.service" \
       > /etc/systemd/system/nox-mem-watcher.service
-    chmod +x "$WATCH_SCRIPT"
+    [[ -f "$WATCH_SCRIPT" ]] && chmod +x "$WATCH_SCRIPT"
     systemctl daemon-reload
     systemctl enable nox-mem-watcher --quiet
     systemctl start nox-mem-watcher
+    log "File watcher active (systemd: nox-mem-watcher)"
   fi
-  log "Watcher systemd ativo (monitora memory/ em tempo real)"
 else
-  warn "systemd não disponível — watcher não instalado (opcional)"
+  info "systemd watcher: skipped (systemctl not available or service file not found)"
+fi
+
+# Optional: cron jobs
+if command -v crontab &>/dev/null; then
+  info "Installing optional cron jobs..."
+  LOG_DIR="${NOX_LOG_DIR:-/var/log/nox-mem}"
+  CRON_CONSOLIDATE="0 23 * * * nox-mem consolidate >> $LOG_DIR/nox-mem.log 2>&1"
+  CRON_VECTORIZE="0 */4 * * * nox-mem vectorize >> $LOG_DIR/nox-mem.log 2>&1"
+  MARKER_START="# NOX-SUPERMEM-CRON-START"
+  MARKER_END="# NOX-SUPERMEM-CRON-END"
+  if $DRY_RUN; then
+    dry "Install crons: consolidate 23:00 daily, vectorize every 4h"
+  else
+    mkdir -p "$LOG_DIR"
+    (
+      crontab -l 2>/dev/null | sed "/$MARKER_START/,/$MARKER_END/d"
+      echo "$MARKER_START"
+      echo "$CRON_CONSOLIDATE"
+      echo "$CRON_VECTORIZE"
+      echo "$MARKER_END"
+    ) | crontab -
+    log "Crons installed (consolidate daily 23:00, vectorize every 4h)"
+  fi
 fi
 
 # =============================================================================
-# ETAPA 9 — Crons + reindex inicial
-# =============================================================================
-step "Etapa 9/9 — Crons automáticos + reindex inicial"
-
-if $DRY_RUN; then
-  dry "Adicionar cron: consolidate diário às 23h"
-  dry "Adicionar cron: digest semanal domingo às 21h"
-  dry "nox-mem reindex"
-else
-  # Consolidação diária às 23h
-  CRON_CONSOLIDATE="0 23 * * * /usr/local/bin/nox-mem consolidate >> $WORKSPACE/logs/nox-mem.log 2>&1"
-  # Digest semanal domingo às 21h
-  CRON_DIGEST="0 21 * * 0 /usr/local/bin/nox-mem digest >> $WORKSPACE/logs/nox-mem.log 2>&1"
-
-  mkdir -p "$WORKSPACE/logs"
-
-  # Adicionar crons usando markers únicos (idempotente)
-  CRON_MARKER_START="# NOX-SUPERMEM-CRON-START"
-  CRON_MARKER_END="# NOX-SUPERMEM-CRON-END"
-  (
-    crontab -l 2>/dev/null | sed "/$CRON_MARKER_START/,/$CRON_MARKER_END/d"
-    echo "$CRON_MARKER_START"
-    echo "$CRON_CONSOLIDATE"
-    echo "$CRON_DIGEST"
-    echo "$CRON_MARKER_END"
-  ) | crontab -
-
-  # Reindex inicial
-  info "Indexando memória existente..."
-  "$NOX_BIN" reindex 2>&1 | tee -a "$LOG_FILE" | tail -3 || warn "Reindex falhou — rode 'nox-mem reindex' manualmente"
-fi
-log "Crons configurados e reindex concluído"
-
-# =============================================================================
-# Diagnóstico final
+# Done
 # =============================================================================
 echo ""
-echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${BOLD}${GREEN}  ✅ NOX-Supermem instalado com sucesso!${RESET}"
-echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${BOLD}${GREEN}=== Installation complete ===${RESET}"
 echo ""
-echo -e "${BOLD}Comandos disponíveis:${RESET}"
-echo "  nox-mem search \"palavra\"    — buscar na memória"
-echo "  nox-mem primer              — recuperar contexto (use no SOUL.md)"
-echo "  nox-mem stats               — estatísticas do índice"
-echo "  nox-mem consolidate         — consolidar notas com IA"
-echo "  nox-mem digest              — gerar resumo semanal"
-echo "  nox-mem doctor              — verificar saúde do sistema"
-echo "  nox-mem reindex             — reindexar toda a memória"
+echo -e "${BOLD}Next steps:${RESET}"
+echo "  1. Edit $ENV_DEST (set GEMINI_API_KEY, NOX_DB_PATH, NOX_MEM_DIR, NOX_API_TOKEN)"
+echo "  2. Source the env:  set -a; source $ENV_DEST; set +a"
+echo "  3. Run first index: nox-mem reindex"
+echo "  4. Start API:       nox-mem serve"
+echo "  5. Health check:    curl http://127.0.0.1:18802/api/health | jq .vectorCoverage"
 echo ""
-echo -e "${BOLD}Crons configurados:${RESET}"
-echo "  23:00 diário   — consolidate (extração IA automática)"
-echo "  21:00 domingo  — digest (resumo semanal)"
-echo ""
-echo -e "${BOLD}Próximos passos:${RESET}"
-echo "  1. Adicione ao SOUL.md do seu agente:"
-echo "     'Antes de cada sessão: execute nox-mem primer'"
-echo "  2. Consulte o GUIA-INSTALACAO.md para configurações avançadas"
+echo -e "${BOLD}Key commands:${RESET}"
+echo "  nox-mem search \"query\"  — hybrid search"
+echo "  nox-mem stats           — chunk/vector/KG counts"
+echo "  nox-mem vectorize       — embed pending chunks"
+echo "  nox-mem kg-build        — extract knowledge graph"
+echo "  nox-mem --help          — full command list"
 echo ""
 if $DRY_RUN; then
-  echo -e "${YELLOW}Modo dry-run: nenhuma alteração foi feita.${RESET}"
-  echo -e "${YELLOW}Execute sem --dry-run para instalar de verdade.${RESET}"
+  echo -e "${YELLOW}DRY-RUN: no changes were made. Re-run without --dry-run to install.${RESET}"
 fi
-echo -e "Log completo: ${BLUE}$LOG_FILE${RESET}"
+echo "Install log: $LOG_FILE"
 echo ""

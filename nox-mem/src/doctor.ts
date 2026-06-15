@@ -1,5 +1,4 @@
-import { getDb } from "./db.js";
-import { getConfig } from "./config.js";
+import { getDb, DB_PATH } from "./db.js";
 import { statSync, existsSync } from "fs";
 
 export async function doctor(): Promise<void> {
@@ -9,7 +8,7 @@ export async function doctor(): Promise<void> {
   try {
     const db = getDb();
     const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined;
-    checks.push({ name: "SQLite DB", status: "✅", detail: `schema v${version?.value || "?"}, ${formatSize(getConfig().dbPath)}` });
+    checks.push({ name: "SQLite DB", status: "✅", detail: `schema v${version?.value || "?"}, ${formatSize(DB_PATH)}` });
 
     // 2. FTS5 index
     const ftsCount = (db.prepare("SELECT COUNT(*) as c FROM chunks_fts").get() as { c: number }).c;
@@ -45,13 +44,15 @@ export async function doctor(): Promise<void> {
   }
 
   // 6. Notion token
-  const notionTokenExists = !!process.env.NOTION_TOKEN // TODO: check config.notion.token;
-  checks.push({ name: "Notion token", status: notionTokenExists ? "✅" : "⚠️", detail: notionTokenExists ? "found (via env NOTION_TOKEN or config.json)" : "missing" });
+  const notionTokenPath = process.env.NOX_NOTION_TOKEN_PATH ?? "/root/.config/notion/api_key";
+  const notionTokenExists = existsSync(notionTokenPath);
+  checks.push({ name: "Notion token", status: notionTokenExists ? "✅" : "⚠️", detail: notionTokenExists ? `found at ${notionTokenPath}` : `missing (set NOX_NOTION_TOKEN_PATH or place key at ${notionTokenPath})` });
 
   // 7. File watcher
   try {
     const { execFileSync } = await import("child_process");
-    const result = execFileSync("systemctl", ["is-active", "nox-mem-watcher"], { encoding: "utf-8" }).trim();
+    const service = "nox-mem-watch.service";
+    const result = execFileSync("systemctl", ["is-active", service], { encoding: "utf-8" }).trim();
     checks.push({ name: "File watcher", status: result === "active" ? "✅" : "⚠️", detail: result });
   } catch {
     checks.push({ name: "File watcher", status: "❌", detail: "service not found or inactive" });

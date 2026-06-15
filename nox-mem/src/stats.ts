@@ -1,5 +1,5 @@
-import { getDb } from "./db.js";
-import { getConfig } from "./config.js";
+import { getDb, DB_PATH } from "./db.js";
+import { getTierStats } from "./tier-manager.js";
 import { statSync } from "fs";
 
 export function getStats(): string {
@@ -23,15 +23,25 @@ export function getStats(): string {
 
   let dbSize = "0 B";
   try {
-    const bytes = statSync(getConfig().dbPath).size;
+    const bytes = statSync(DB_PATH).size;
     dbSize = bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
   } catch {}
 
   const typeLine = byType.map((t) => `  ${t.chunk_type}: ${t.c}`).join("\n");
 
+  const tiers = getTierStats(db);
+  const tierLine = [
+    `  🔵 core:       ${tiers.core ?? 0}`,
+    `  🟡 working:    ${tiers.working ?? 0}`,
+    `  ⬜ peripheral: ${tiers.peripheral ?? 0}`,
+  ].join("\n");
+
   return [
     `Chunks: ${total} total`,
     typeLine,
+    "",
+    `Tiers:`,
+    tierLine,
     "",
     `Last consolidation: ${lastCon?.value ?? "never"}`,
     `Consolidated files: ${consolidated}`,

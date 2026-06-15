@@ -2,11 +2,12 @@ import { readFileSync } from "fs";
 import { relative } from "path";
 import Database from "better-sqlite3";
 import { getDb } from "./db.js";
+import { getInitialTier, getInitialImportance } from "./tier-manager.js";
+import { resolveRetention } from "./retention.js";
+import { inferPain, inferImportance } from "./salience.js";
+import { redact } from "./privacy/filter.js";
 
-// TODO: replace with getConfig().workspace (see config.ts)
-import { getConfig } from "./config.js";
-
-const WORKSPACE = () => getConfig().workspace;
+const WORKSPACE = process.env.OPENCLAW_WORKSPACE || "/root/.openclaw/workspace";
 
 const TYPE_MAP: Record<string, string> = {
   "memory/decisions.md": "decision",
@@ -19,6 +20,11 @@ const TYPE_MAP: Record<string, string> = {
 export function detectChunkType(relPath: string): string {
   if (TYPE_MAP[relPath]) return TYPE_MAP[relPath];
   if (relPath.startsWith("shared/")) return "team";
+  if (relPath.match(/memory\/entities\/decisions\//)) return "decision";
+  if (relPath.match(/memory\/entities\/lessons\//)) return "lesson";
+  if (relPath.match(/memory\/entities\/projects\//)) return "project";
+  if (relPath.match(/memory\/entities\/persons?\//)) return "person";
+  if (relPath.match(/memory\/entities\/agents\//)) return "team";
   if (relPath.match(/memory\/feedback\//)) return "feedback";
   if (relPath.match(/memory\/digests\//)) return "digest";
   if (relPath.match(/memory\/\d{4}-\d{2}-\d{2}/)) return "daily";
@@ -112,9 +118,12 @@ function sanitizeUtf8(text: string): string {
  * @param externalDb — optional db connection (used by reindex for single-connection)
  * @param skipDelete — skip DELETE before insert (used by reindex since table is already cleared)
  */
-export function ingestFile(filePath: string, externalDb?: Database.Database, skipDelete?: boolean): { chunks: number } {
+export async function ingestFile(filePath: string, externalDb?: Database.Database, skipDelete?: boolean): Promise<{ chunks: number }> {
   const db = externalDb || getDb();
-  const relPath = relative(WORKSPACE(), filePath);
+  const relPath = relative(WORKSPACE, filePath);
+  // A2 (2026-04-25): entity routing moved to lib/ingest-router.ts — single dispatch.
+  // ingestFile() é agora handler de markdown puro; callers devem usar routeIngest()
+  // pra ter routing automático. Fallback path (forceMarkdown) chama ingestFile direto.
   let content = readFileSync(filePath, "utf-8");
   if (!content.trim()) {
     if (!externalDb) db.close();
@@ -124,8 +133,20 @@ export function ingestFile(filePath: string, externalDb?: Database.Database, ski
   // Sanitize UTF-8
   content = sanitizeUtf8(content);
 
+  // Privacy filter: redact secrets/PII before storage (staged-privacy)
+  const _r = redact(content);
+  content = _r.text;
+  if (_r.redactionCount > 0) {
+    console.warn(`[privacy-filter] redacted ${_r.redactionCount} secret(s) in ${relPath} — kinds: ${_r.kinds.join(", ")}`);
+  }
+
   const chunkType = detectChunkType(relPath);
-  const sourceDate = extractDate(relPath);
+  // For named files without a date in the path (decisions.md, lessons.md, etc.),
+  // use today's date so stats queries don't exclude them as "undated"
+  const rawDate = extractDate(relPath);
+  const sourceDate = rawDate ?? (["decision", "lesson", "team", "project", "person", "pending"].includes(chunkType)
+    ? new Date().toISOString().slice(0, 10)
+    : null);
   const isJson = filePath.endsWith(".json");
   const textChunks = isJson ? chunkJson(content) : chunkMarkdown(content);
 
@@ -134,14 +155,52 @@ export function ingestFile(filePath: string, externalDb?: Database.Database, ski
     db.prepare("DELETE FROM chunks WHERE source_file = ?").run(relPath);
   }
 
+  const tier = getInitialTier(chunkType);
+  // Fase 1.7b-b — use smarter importance heuristic (falls back to initial if type unknown).
+  // source_type is not known at ingest time for markdown (set post-ingest via migration);
+  // pass undefined so inferImportance uses chunk_type-only path.
+  const baseImportance = inferImportance(chunkType) ?? getInitialImportance(chunkType);
+  // Fase 1.7b-a — retention resolved once per file; per-chunk override via HTML
+  // comment applies to the whole file (not per-chunk, to keep semantics simple).
+  const retentionDays = resolveRetention(chunkType, content);
   const insert = db.prepare(
-    "INSERT INTO chunks (source_file, chunk_text, chunk_type, source_date, metadata) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO chunks (source_file, chunk_text, chunk_type, source_date, metadata, tier, importance, retention_days, pain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const insertMany = db.transaction((chunks: string[]) => {
-    for (const text of chunks) insert.run(relPath, text, chunkType, sourceDate, null);
+    for (const text of chunks) {
+      // Fase 1.7b-b — pain is per-chunk (text-driven); importance is per-file (type-driven).
+      const painScore = inferPain(chunkType, text);
+      insert.run(relPath, text, chunkType, sourceDate, null, tier, baseImportance, retentionDays, painScore);
+    }
   });
   insertMany(textChunks);
 
   if (!externalDb) db.close();
+  
+  // Auto-vectorize direct ingests only. Reindex passes externalDb and is followed
+  // by a batch vectorize phase; embedding per file there is too expensive.
+  if (!externalDb && process.env.GEMINI_API_KEY) {
+    try {
+      const { embedText, ensureVecTable, upsertEmbedding } = await import("./embed.js");
+      const db = getDb();
+      ensureVecTable(db);
+      const newChunks = db.prepare(
+        "SELECT id, chunk_text FROM chunks WHERE source_file = ? ORDER BY id DESC LIMIT 20"
+      ).all(relPath) as Array<{ id: number; chunk_text: string }>;
+      
+      let embedded = 0;
+      for (const chunk of newChunks) {
+        try {
+          const emb = await embedText(chunk.chunk_text);
+          if (emb && emb.length > 0) {
+            upsertEmbedding(db, chunk.id, emb);
+            embedded++;
+          }
+        } catch { break; } // Stop on first API error (rate limit)
+      }
+      if (embedded > 0) console.log("[INGEST] Auto-vectorized " + embedded + " chunks");
+    } catch {}
+  }
+
   return { chunks: textChunks.length };
 }

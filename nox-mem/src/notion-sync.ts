@@ -2,19 +2,21 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import type { NotionItem } from "./consolidate.js";
-import { getConfig } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const NOTION_API = "https://api.notion.com/v1/pages";
 const NOTION_VERSION = "2025-09-03";
-const getDatabase = () => getConfig().notion.databaseId;
+const DATABASE_ID = "31d8e29911ab8163b718d7af565f2fcc";
 const SYNC_LOG_PATH = resolve(__dirname, "..", "last-sync.json");
 
 function getNotionToken(): string | null {
+  // Token can also be supplied directly via NOX_NOTION_TOKEN env var
+  if (process.env.NOX_NOTION_TOKEN) return process.env.NOX_NOTION_TOKEN.trim();
+  const tokenPath = process.env.NOX_NOTION_TOKEN_PATH ?? "/root/.config/notion/api_key";
   try {
-    return getConfig().notion.token || process.env.NOTION_TOKEN || "" // configure in config.json;
+    return readFileSync(tokenPath, "utf-8").trim();
   } catch {
-    console.error("[WARN] Notion token not configured. Set NOTION_TOKEN env or configure config.json");
+    console.error(`[WARN] Notion token not found at ${tokenPath} (set NOX_NOTION_TOKEN or NOX_NOTION_TOKEN_PATH)`);
     return null;
   }
 }
@@ -22,7 +24,7 @@ function getNotionToken(): string | null {
 async function createNotionPage(token: string, item: NotionItem): Promise<boolean> {
   try {
     const body = {
-      parent: { database_id: getDatabase() },
+      parent: { database_id: DATABASE_ID },
       properties: {
         "Título": { title: [{ text: { content: item.title.substring(0, 100) } }] },
         "Data": { date: { start: item.date } },

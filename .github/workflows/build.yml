@@ -1,4 +1,4 @@
-name: Build & Typecheck
+name: Build & Smoke Test
 
 on:
   push:
@@ -16,24 +16,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: nox-mem/package-lock.json
 
-      - name: Install dependencies
+      - name: Install system deps (required by better-sqlite3)
+        run: sudo apt-get install -y build-essential python3
+
+      - name: Install npm dependencies
         run: npm ci
 
       - name: TypeScript build
         run: npm run build
 
+      - name: Smoke test — CLI help
+        run: node dist/index.js --help
+
       - name: Check for hardcoded credentials
         run: |
           echo "Checking for hardcoded paths/credentials..."
           if grep -rn "openclaw\|/root/\|ntn_[a-zA-Z]" src/*.ts | grep -v "OPENCLAW_WORKSPACE\|HOME\|TODO\|process.env\|config\."; then
-            echo "❌ Hardcoded credentials found!"
+            echo "Hardcoded credentials found!"
             exit 1
           fi
-          echo "✅ No hardcoded credentials found"
+          echo "No hardcoded credentials found"
