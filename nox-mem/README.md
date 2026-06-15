@@ -142,11 +142,11 @@ All destructive operations (reindex, consolidate, compact, crystallize, kg-prune
 After install, verify the engine is healthy:
 
 ```bash
-# Start the API server
-nox-mem serve &
+# Start the API server (no `serve` subcommand — run the server entry directly)
+node "$(npm root -g)/nox-mem/dist/api-server.js" &
 
-# Check vector coverage (should be close to 1.0)
-curl -s http://127.0.0.1:18802/api/health | jq .vectorCoverage
+# Check vector coverage (should be close to 1.0). Code default port is 18800.
+curl -s "http://127.0.0.1:${NOX_API_PORT:-18800}/api/health" | jq .vectorCoverage
 ```
 
 A `vectorCoverage` value below 0.99 means some chunks are not yet embedded — run `nox-mem vectorize` to catch up.
@@ -163,7 +163,8 @@ nox-mem vectorize          — embed any unembedded chunks
 nox-mem stats              — chunk/entity/vector counts
 nox-mem kg-build           — extract knowledge graph entities
 nox-mem reflect            — surface high-salience insights
-nox-mem serve              — start HTTP API on $NOX_API_PORT (default 18802)
+node dist/api-server.js    — start HTTP API on $NOX_API_PORT (code default 18800)
+node dist/mcp-server.js    — start MCP server (20 tools, for agents)
 nox-mem --help             — full command reference
 ```
 
