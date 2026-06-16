@@ -2,18 +2,30 @@
  * embed.ts - Semantic embedding via Gemini API (gemini-embedding-001, 768-dim)
  * Uses the same API key already configured in the OpenClaw gateway.
  * Zero local model weight, zero sqlite-vec binding issues.
+ *
+ * Provider routing (added 2026-06-15):
+ * When NOX_EMBEDDING_PROVIDER / NOX_EMBED_PROVIDER is set to anything other
+ * than "gemini" (the default), embedding calls are delegated to the abstract
+ * EmbeddingProvider from src/providers/. The native Gemini path (taskType-aware
+ * RETRIEVAL_DOCUMENT / RETRIEVAL_QUERY) is preserved 100% when using gemini.
  */
 
 import Database from "better-sqlite3";
 import * as path from "path";
+import { selectEmbeddingProvider, type EmbeddingProvider } from "./providers/index.js";
 // @ts-ignore
-import { load as loadVec } from "sqlite-vec";
+import { load as loadVec, getLoadablePath as vecLoadablePath } from "sqlite-vec";
 
-// Full path to vec0.so for Node 22 compatibility
-const VEC0_PATH = path.join(
-  import.meta.dirname || __dirname,
-  "../node_modules/sqlite-vec-linux-x64/vec0"
-);
+// Resolve the vec0 extension for the CURRENT platform. The previous hardcoded
+// "sqlite-vec-linux-x64" path only worked on Linux x64; sqlite-vec's own
+// resolver picks the right sqlite-vec-<os>-<arch> optional dependency.
+const VEC0_PATH = (() => {
+  try { return vecLoadablePath(); } catch { /* fall back to legacy path below */ }
+  return path.join(
+    import.meta.dirname || __dirname,
+    "../node_modules/sqlite-vec-linux-x64/vec0"
+  );
+})();
 
 // Wrapper para garantir que vec0 carrega corretamente
 function loadVecSafe(db: Database.Database): void {
@@ -122,9 +134,51 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// ─── Provider abstraction (lazy singleton) ───────────────────────────────────
+
+// undefined = not yet resolved; null = use native gemini path
+let _embProvider: EmbeddingProvider | null | undefined;
+
+/**
+ * Returns the active non-Gemini provider, or null when the native Gemini path
+ * should be used (default). Resolved once and cached for the process lifetime.
+ */
+function activeEmbeddingProvider(): EmbeddingProvider | null {
+  if (_embProvider !== undefined) return _embProvider;
+  const name = (
+    process.env.NOX_EMBEDDING_PROVIDER ??
+    process.env.NOX_EMBED_PROVIDER ??
+    "gemini"
+  ).trim();
+  _embProvider = name === "gemini" ? null : selectEmbeddingProvider(name);
+  return _embProvider;
+}
+
+/**
+ * Returns the effective embedding dimension for the current provider.
+ * Priority: provider.dimensions > NOX_EMBEDDING_DIM / NOX_EMBED_DIM env > EMBEDDING_DIM (3072).
+ * Used by ensureVecTable so the vec0 column matches whatever provider is active.
+ */
+export function activeEmbeddingDim(): number {
+  const provider = activeEmbeddingProvider();
+  if (provider !== null) return provider.dimensions;
+  const raw = process.env.NOX_EMBEDDING_DIM ?? process.env.NOX_EMBED_DIM;
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return EMBEDDING_DIM;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function embedText(text: string): Promise<Float32Array> {
+  // Route to abstract provider when configured; keep native Gemini path as default.
+  const provider = activeEmbeddingProvider();
+  if (provider !== null) {
+    const vecs = await provider.embed([text]);
+    return vecs[0];
+  }
   const values = await geminiEmbedQuery(text);
   return new Float32Array(values);
 }
@@ -139,6 +193,22 @@ export async function embedBatchAPI(
   texts: string[],
   options: { batchSize?: number; pauseMs?: number; onProgress?: (done: number, total: number) => void } = {}
 ): Promise<Float32Array[]> {
+  // Delegate to abstract provider when configured; keep Gemini batch path as default.
+  const provider = activeEmbeddingProvider();
+  if (provider !== null) {
+    const batchSize = Math.max(1, options.batchSize ?? 50);
+    const results: Float32Array[] = new Array(texts.length);
+    for (let start = 0; start < texts.length; start += batchSize) {
+      const slice = texts.slice(start, start + batchSize);
+      const vecs = await provider.embed(slice);
+      for (let i = 0; i < slice.length; i++) {
+        results[start + i] = vecs[i];
+      }
+      options.onProgress?.(Math.min(start + batchSize, texts.length), texts.length);
+    }
+    return results;
+  }
+
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not set");
   const batchSize = Math.max(1, Math.min(options.batchSize ?? 50, 100));
   const pauseMs = options.pauseMs ?? 1000;
@@ -217,9 +287,11 @@ export async function embedBatch(texts: string[]): Promise<Float32Array[]> {
  */
 export function ensureVecTable(db: Database.Database): void {
   loadVecSafe(db);
+  // Use activeEmbeddingDim() so the vec0 column dimension matches the active provider.
+  // For the default Gemini path this resolves to EMBEDDING_DIM (3072) — no behaviour change.
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
-      embedding FLOAT[${EMBEDDING_DIM}]
+      embedding FLOAT[${activeEmbeddingDim()}]
     );
     CREATE TABLE IF NOT EXISTS vec_chunk_map (
       vec_rowid INTEGER PRIMARY KEY,
