@@ -1,15 +1,17 @@
 /**
- * reflect.ts — Deep KG synthesis: gather evidence + synthesize with Gemini
+ * reflect.ts — Deep KG synthesis: gather evidence + synthesize via LLM provider
+ *
+ * Provider selection: NOX_LLM_PROVIDER env (default 'gemini').
+ * Model override:     NOX_LLM_MODEL env (default 'gemini-2.5-flash-lite' per CLAUDE.md regra #3).
+ * Fallback chain:     NOX_LLM_FALLBACK env (handled transparently by selectLLMProviderWithFallback).
  */
 import { getDb } from "./db.js";
 import { search, searchHybrid, type SearchResult } from "./search.js";
 import { queryEntity, listDecisions, type GraphNode, type GraphEdge } from "./knowledge-graph.js";
 import { findPath } from "./cross-agent-v2.js";
 import { embedText } from "./embed.js";
+import { selectLLMProviderWithFallback, MissingKeyError } from "./providers/index.js";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const MAX_EVIDENCE_CHARS = 2000;
 const CACHE_TTL_HOURS = 24;
 
@@ -198,9 +200,6 @@ function formatEvidence(evidence: Evidence): string {
 }
 
 async function synthesize(question: string, evidence: string): Promise<string> {
-  if (!GEMINI_API_KEY) return "[reflect error: GEMINI_API_KEY not set]";
-
-  const url = `${API_BASE}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
   const prompt = `You are a memory synthesis agent. Given the evidence below, answer the question concisely.
 Cite sources when possible. If the evidence is insufficient, say so.
 Answer in the same language as the question. Max 500 characters.
@@ -212,22 +211,21 @@ ${evidence}
 
 SYNTHESIZED ANSWER:`;
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 256, temperature: 0.3 },
-    }),
-  });
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    return `[reflect error: Gemini ${resp.status}: ${errText.substring(0, 100)}]`;
+  try {
+    const llm = selectLLMProviderWithFallback();
+    const result = await llm.complete({
+      user: prompt,
+      maxTokens: 256,
+      temperature: 0.3,
+    });
+    return result.text.trim() || "[reflect: empty response]";
+  } catch (err) {
+    if (err instanceof MissingKeyError) {
+      return `[reflect error: ${err.message}]`;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return `[reflect error: ${msg.substring(0, 150)}]`;
   }
-
-  const data = await resp.json() as any;
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[reflect: empty response]";
 }
 
 export async function reflect(
@@ -306,7 +304,7 @@ export async function reflect(
     ON CONFLICT(query_hash) DO UPDATE SET
       response=excluded.response, evidence_sources=excluded.evidence_sources,
       model=excluded.model, ttl_hours=excluded.ttl_hours, created_at=datetime('now')
-  `).run(qHash, question, answer, JSON.stringify(sources), GEMINI_MODEL, CACHE_TTL_HOURS);
+  `).run(qHash, question, answer, JSON.stringify(sources), process.env.NOX_LLM_MODEL ?? "gemini-2.5-flash-lite", CACHE_TTL_HOURS);
 
   // CODE-FIX MEDIUM: embedding capture deferred (don't block user response)
   if (SEMANTIC_CACHE_ENABLED) {

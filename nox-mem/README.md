@@ -78,18 +78,18 @@ nox-mem stats
 
 | Var | Default | Purpose |
 |---|---|---|
-| `NOX_LLM_PROVIDER` | `gemini` | `gemini` or `openai` (any OpenAI-compatible endpoint). |
-| `NOX_LLM_MODEL` | `gemini-2.5-flash-lite` / `gpt-4o-mini` | LLM model id. |
-| `NOX_LLM_BASE_URL` | provider default | OpenAI-compat endpoint — DeepSeek/OpenRouter/Together/local. |
-| `NOX_LLM_API_KEY` | falls back to `GEMINI_API_KEY` / `OPENAI_API_KEY` | LLM key. |
+| `NOX_LLM_PROVIDER` | `gemini` | `gemini`, `openai` (any OpenAI-compatible endpoint), or `anthropic`. |
+| `NOX_LLM_MODEL` | `gemini-2.5-flash-lite` | LLM model id (e.g. `gpt-4o-mini`, `claude-3-5-haiku-20241022`). |
+| `NOX_LLM_BASE_URL` | provider default | OpenAI-compat base URL — DeepSeek/OpenRouter/Together/Ollama/vLLM. Ignored for `anthropic`. |
+| `NOX_LLM_API_KEY` | falls back to `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | LLM key. |
 | `NOX_LLM_FALLBACK` | — | Fallback chain, e.g. `openai:gpt-4o-mini`. |
-| `NOX_EMBEDDING_PROVIDER` | `gemini` | `gemini` or `openai`. Alias: `NOX_EMBED_PROVIDER`. |
-| `NOX_EMBEDDING_MODEL` | `gemini-embedding-001` / `text-embedding-3-small` | Embedding model. Alias: `NOX_EMBED_MODEL`. |
-| `NOX_EMBEDDING_BASE_URL` | provider default | Embedding endpoint. Alias: `NOX_EMBED_BASE_URL`. |
+| `NOX_EMBEDDING_PROVIDER` | `gemini` | `gemini`, `openai` (any OpenAI-compat endpoint), or `voyage`. Alias: `NOX_EMBED_PROVIDER`. |
+| `NOX_EMBEDDING_MODEL` | `gemini-embedding-001` | Embedding model id (e.g. `text-embedding-3-large`, `voyage-3`). Alias: `NOX_EMBED_MODEL`. |
+| `NOX_EMBEDDING_BASE_URL` | provider default | Embedding base URL for OpenAI-compat providers. Alias: `NOX_EMBED_BASE_URL`. |
 | `NOX_EMBEDDING_API_KEY` | falls back to provider key | Embedding key. Alias: `NOX_EMBED_API_KEY`. |
-| `NOX_EMBEDDING_DIM` | `3072` | Vector dim. **MUST equal the vec0 table dim** — changing it requires re-embedding the whole corpus. Alias: `NOX_EMBED_DIM`. |
+| `NOX_EMBEDDING_DIM` | `3072` | Vector dimension. **MUST equal the vec0 table dim** — changing it requires re-embedding the whole corpus. Alias: `NOX_EMBED_DIM`. |
 
-> ⚠️ Embeddings from different models/dims are not comparable. Pick one embedding model up front; mixing silently corrupts semantic search. `text-embedding-3-large` supports `dimensions=3072` for parity with the default table.
+> ⚠️ **Dimension lock:** the sqlite-vec table is created with a fixed dimension. Switching embedding provider or model requires re-embedding the **entire corpus** with a single model at a single dimension, and that dimension must match the `vec0` table. `text-embedding-3-large` supports `dimensions=3072` (matches the default Gemini table); `text-embedding-3-small` is 1536 — only usable with a fresh/empty database. Set `NOX_EMBEDDING_MODEL` + `NOX_EMBEDDING_DIM` deliberately. Vectors from different models are not comparable — mixing silently corrupts semantic search.
 
 ### Advanced (safe to leave unset — defaults are standalone-neutral)
 
@@ -111,23 +111,62 @@ nox-mem stats
 
 ## Multi-provider support
 
-By default nox-mem uses **Gemini via AI Studio** (`gemini/gemini-2.5-flash-lite` model, key = `GEMINI_API_KEY`).
+By default nox-mem uses **Gemini via Google AI Studio** for both LLM synthesis and embeddings (`GEMINI_API_KEY`, model `gemini-2.5-flash-lite`, embeddings `gemini-embedding-001` at 3072 dimensions).
 
-To switch to any OpenAI-compatible provider (DeepSeek, OpenRouter, local Ollama, etc.):
+Both axes are independently pluggable at runtime — no rebuild required.
 
+### LLM synthesis (reflect, answer, kg-extract)
+
+Supported values for `NOX_LLM_PROVIDER`: `gemini` (default) · `openai` (any OpenAI-compatible endpoint) · `anthropic`.
+
+**Example — DeepSeek via direct API (OpenAI-compat):**
 ```bash
 NOX_LLM_PROVIDER=openai
-NOX_LLM_BASE_URL=https://openrouter.ai/api/v1
-NOX_LLM_MODEL=deepseek/deepseek-chat
+NOX_LLM_BASE_URL=https://api.deepseek.com/v1
+NOX_LLM_MODEL=deepseek-chat
 NOX_LLM_API_KEY=sk-...
-
-NOX_EMBED_PROVIDER=openai
-NOX_EMBED_BASE_URL=https://openrouter.ai/api/v1
-NOX_EMBED_MODEL=text-embedding-3-small
-NOX_EMBED_API_KEY=sk-...
 ```
 
-Provider-switching works at runtime — no rebuild required.
+**Example — Anthropic Claude:**
+```bash
+NOX_LLM_PROVIDER=anthropic
+NOX_LLM_MODEL=claude-3-5-haiku-20241022
+NOX_LLM_API_KEY=sk-ant-...   # or set ANTHROPIC_API_KEY
+```
+
+**Example — local Ollama:**
+```bash
+NOX_LLM_PROVIDER=openai
+NOX_LLM_BASE_URL=http://127.0.0.1:11434/v1
+NOX_LLM_MODEL=llama3.2
+NOX_LLM_API_KEY=ollama
+```
+
+**Fallback chain:** `NOX_LLM_FALLBACK=openai:gpt-4o-mini` — tried if the primary LLM call fails.
+
+### Embedding provider
+
+Supported values for `NOX_EMBEDDING_PROVIDER` (alias `NOX_EMBED_PROVIDER`): `gemini` (default) · `openai` (any OpenAI-compat endpoint, including local Ollama/vLLM) · `voyage`.
+
+**Example — OpenAI native (3072-dim parity with default Gemini table):**
+```bash
+NOX_EMBEDDING_PROVIDER=openai
+NOX_EMBEDDING_BASE_URL=https://api.openai.com/v1
+NOX_EMBEDDING_MODEL=text-embedding-3-large
+NOX_EMBEDDING_DIM=3072
+NOX_EMBEDDING_API_KEY=sk-...
+```
+
+**Example — local Ollama embedding:**
+```bash
+NOX_EMBEDDING_PROVIDER=openai
+NOX_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+NOX_EMBEDDING_MODEL=nomic-embed-text
+NOX_EMBEDDING_DIM=768          # must match the model's output dim
+NOX_EMBEDDING_API_KEY=ollama
+```
+
+> ⚠️ **Dimension lock:** the sqlite-vec table is created once with a fixed dimension. Switching embedding provider or model requires re-embedding the **entire corpus** with a single model at a single dimension, and that dimension must match the `vec0` table. `text-embedding-3-large` supports `dimensions=3072` (matches the default Gemini table). `text-embedding-3-small` outputs 1536 — only usable with a fresh/empty database. Set `NOX_EMBEDDING_MODEL` + `NOX_EMBEDDING_DIM` deliberately and do not mix vectors from different models.
 
 ---
 

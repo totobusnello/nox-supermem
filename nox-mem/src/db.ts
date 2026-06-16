@@ -2,6 +2,8 @@ import Database from "better-sqlite3";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
+// @ts-ignore - sqlite-vec ships no type declarations for this helper
+import { getLoadablePath as vecLoadablePath } from "sqlite-vec";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const _ws = process.env.OPENCLAW_WORKSPACE;
@@ -80,8 +82,14 @@ export function getDb(): Database.Database {
   // when CLI runs DELETE/INSERT on chunks. Source fix migrated 2026-05-30 from
   // tactical dist/db.js patch; persists across npm build.
   try {
-    const VEC0_PATH = resolve(__dirname, "..", "node_modules", "sqlite-vec-linux-x64", "vec0");
-    _db.loadExtension(VEC0_PATH);
+    // Resolve the vec0 extension for the CURRENT platform via sqlite-vec's own
+    // resolver (it reads the matching sqlite-vec-<os>-<arch> optional dependency).
+    // The previous hardcoded "sqlite-vec-linux-x64" path broke every non-Linux-x64
+    // install (macOS, ARM, Windows) — semantic search silently fell back to BM25.
+    let vec0Path: string;
+    try { vec0Path = vecLoadablePath(); }
+    catch { vec0Path = resolve(__dirname, "..", "node_modules", "sqlite-vec-linux-x64", "vec0"); }
+    _db.loadExtension(vec0Path);
   } catch (err) {
     console.error("[db] sqlite-vec load failed (vec_chunks triggers may fail):", (err as Error).message);
   }
@@ -164,8 +172,24 @@ function ensureSchema(db: Database.Database): void {
   if (currentVersion < 5) migrateToV5(db);
   if (currentVersion < 6) migrateToV6(db);
   if (currentVersion < 7) migrateToV7(db);
+  if (currentVersion < 18) migrateToV8(db);
 
   db.prepare("INSERT OR REPLACE INTO meta (key, value, updated_at) VALUES ('schema_version', ?, datetime('now'))").run(String(SCHEMA_VERSION));
+}
+
+function migrateToV8(db: Database.Database): void {
+  // Standalone consolidation of the column additions that the canonical engine
+  // introduced across schema v8–v18 (typed retention, pain-weighting, entity
+  // sections). The ingest path (ingest.ts / ingest-entity.ts) writes these
+  // columns, but the v1–v7 migrations shipped in this repo never create them —
+  // so a clean install crashed on the first `ingest` with
+  // "table chunks has no column named retention_days".
+  // Per-column try/catch keeps this idempotent on DBs already patched at any version.
+  try { db.exec(`ALTER TABLE chunks ADD COLUMN retention_days INTEGER`); } catch {}
+  try { db.exec(`ALTER TABLE chunks ADD COLUMN pain REAL DEFAULT 0.2`); } catch {}
+  try { db.exec(`ALTER TABLE chunks ADD COLUMN section TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE chunks ADD COLUMN section_boost REAL`); } catch {}
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_chunks_section ON chunks(section);`);
 }
 
 function migrateToV7(db: Database.Database): void {

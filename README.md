@@ -252,24 +252,32 @@ The engine is the same core benchmarked in [`memoria-nox`](https://github.com/to
 
 ## 🔌 Multi-provider
 
-Default is **Gemini via Google AI Studio**. Point the LLM/embeddings at any **OpenAI-compatible** endpoint (DeepSeek, OpenRouter, Together, local Ollama/vLLM):
+Default is **Gemini via Google AI Studio** for both LLM and embeddings (`GEMINI_API_KEY`). Both axes are independently pluggable — no rebuild required.
+
+**LLM synthesis** supports `NOX_LLM_PROVIDER=gemini|openai|anthropic`. The `openai` value accepts any OpenAI-compatible base URL (DeepSeek, OpenRouter, Together, local Ollama/vLLM).
+
+**Embedding** supports `NOX_EMBEDDING_PROVIDER=gemini|openai|voyage`. The `openai` value likewise accepts any OpenAI-compatible endpoint.
 
 ```bash
-# LLM
+# Example A — DeepSeek LLM + OpenAI embeddings
 NOX_LLM_PROVIDER=openai
-NOX_LLM_BASE_URL=https://api.deepseek.com/v1     # or openrouter.ai/api/v1, api.together.xyz/v1, http://127.0.0.1:11434/v1
+NOX_LLM_BASE_URL=https://api.deepseek.com/v1
 NOX_LLM_MODEL=deepseek-chat
 NOX_LLM_API_KEY=sk-...
 
-# Embeddings (keep one model/dim for the whole corpus)
 NOX_EMBEDDING_PROVIDER=openai
 NOX_EMBEDDING_BASE_URL=https://api.openai.com/v1
 NOX_EMBEDDING_MODEL=text-embedding-3-large
-NOX_EMBEDDING_DIM=3072        # MUST equal the vec0 table dim; changing model/dim requires re-embedding
+NOX_EMBEDDING_DIM=3072        # MUST equal the vec0 table dim
 NOX_EMBEDDING_API_KEY=sk-...
+
+# Example B — Anthropic Claude LLM (keep Gemini embeddings, or swap independently)
+NOX_LLM_PROVIDER=anthropic
+NOX_LLM_MODEL=claude-3-5-haiku-20241022
+NOX_LLM_API_KEY=sk-ant-...    # or set ANTHROPIC_API_KEY
 ```
 
-> ⚠️ Embeddings from different models/dimensions are not comparable. Pick one up front — mixing silently corrupts semantic search. Full env reference: [`nox-mem/README.md`](./nox-mem/README.md).
+> ⚠️ **Dimension lock:** the sqlite-vec table is created with a fixed dimension. Switching embedding provider or model requires re-embedding the **entire corpus** with a single model at a single dimension matching the `vec0` table. `text-embedding-3-large` supports `dimensions=3072` (same as the default Gemini table). Vectors from different models are not comparable — mixing silently corrupts semantic search. Full env reference: [`nox-mem/README.md`](./nox-mem/README.md).
 
 ---
 
