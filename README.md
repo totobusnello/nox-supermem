@@ -1,11 +1,10 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/banner-dark.svg">
-    <img alt="NOX-Supermem — pain-weighted hybrid memory" src="assets/readme/banner-light.svg" width="720">
-  </picture>
+  <img alt="NOX-Supermem" src="assets/readme/hero.png" width="860">
 </p>
 
-<h1 align="center">Pain-weighted hybrid memory for AI agents &mdash; yours by design.</h1>
+<h1 align="center">NOX-Supermem</h1>
+
+<p align="center"><strong>Pain-weighted hybrid memory for AI agents &mdash; yours by design.</strong></p>
 
 <p align="center"><em>The only agent memory that&rsquo;s genuinely yours. SQLite on your disk, provider your choice, zero vendor lock-in.</em></p>
 
@@ -44,6 +43,12 @@
 </p>
 
 Long-term memory engine that any agent (OpenClaw, Hermes, Claude Code, custom) can use to *remember decisions, search past context, and never ask "where were we?" again.* The engine lives in [`nox-mem/`](./nox-mem) and ships with **no data** — your memory starts empty.
+
+<p align="center">
+  <img alt="nox-mem CLI: install, hybrid search, reflect with cited sources, HTTP API" src="assets/readme/demo.gif" width="820">
+  <br>
+  <sub>Real terminal — <code>stats</code> · hybrid <code>search</code> · <code>reflect</code> (RAG with cited sources) · HTTP API for agents.</sub>
+</p>
 
 ---
 
