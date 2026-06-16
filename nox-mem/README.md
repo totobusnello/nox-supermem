@@ -4,6 +4,17 @@ Pain-weighted hybrid memory engine for AI agents. Self-hosted, zero vendor lock-
 
 **Stack:** TypeScript · Node 20+ · SQLite (FTS5 + sqlite-vec) · Gemini embeddings (default) · OpenAI-compat optional
 
+## Quick start
+
+```bash
+npm i -g nox-mem
+export GEMINI_API_KEY=AIza...   # https://aistudio.google.com/apikey
+export NOX_DB_PATH="$HOME/.nox-mem/nox.db"
+export NOX_MEM_DIR="$HOME/.nox-mem/memory"
+mkdir -p "$HOME/.nox-mem/memory"
+nox-mem stats
+```
+
 ---
 
 ## Prerequisites
@@ -30,16 +41,18 @@ node --version  # expect v20.x or higher
 
 ## Install
 
-### From tarball (recommended for production)
+### From npm (recommended)
 
 ```bash
-# Unpack and install globally from the directory
-npm install -g .
+npm i -g nox-mem
+nox-mem stats
 ```
 
-### From source (build yourself)
+### Build from source
 
 ```bash
+git clone https://github.com/totobusnello/nox-supermem.git
+cd nox-supermem/nox-mem
 npm ci
 npm run build
 npm install -g .

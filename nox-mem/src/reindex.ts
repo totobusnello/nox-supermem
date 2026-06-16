@@ -4,8 +4,8 @@
 //   - 2026-04-25: end-of-day cron reindex wiped section/retention metadata of 183 entities.
 //                 Patched by switching cron to `consolidate`. Reindex CODE itself still buggy.
 //   - 2026-05-19: eval ingest cruzou pro main DB (~5828 chunks lost). PR #145 4-layer guard.
-//   - 2026-05-23 23:17 BRT: nightly reindex SOBRESCREVEU chunks. Recovery via snapshot
-//                 atlas in /root/backups/nox-mem-incident-20260523-2317/ (69032 chunks).
+//   - 2026-05-23 23:17 BRT: nightly reindex overwrote chunks. Recovery via pre-op snapshot
+//                 in /var/backups/nox-mem/pre-op/ (69032 chunks).
 //
 // ROOT CAUSE (3rd incident):
 //   Pre-fix flow was DESTRUCTIVE-THEN-REBUILD:
