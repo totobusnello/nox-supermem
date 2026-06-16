@@ -12,6 +12,8 @@
 
 import Database from "better-sqlite3";
 import * as path from "path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { selectEmbeddingProvider, type EmbeddingProvider } from "./providers/index.js";
 // @ts-ignore
 import { load as loadVec, getLoadablePath as vecLoadablePath } from "sqlite-vec";
@@ -22,7 +24,7 @@ import { load as loadVec, getLoadablePath as vecLoadablePath } from "sqlite-vec"
 const VEC0_PATH = (() => {
   try { return vecLoadablePath(); } catch { /* fall back to legacy path below */ }
   return path.join(
-    import.meta.dirname || __dirname,
+    import.meta.dirname ?? dirname(fileURLToPath(import.meta.url)),
     "../node_modules/sqlite-vec-linux-x64/vec0"
   );
 })();
@@ -287,11 +289,38 @@ export async function embedBatch(texts: string[]): Promise<Float32Array[]> {
  */
 export function ensureVecTable(db: Database.Database): void {
   loadVecSafe(db);
+  const wantDim = activeEmbeddingDim();
+
+  // Detect dimension mismatch on existing vec_chunks tables before CREATE.
+  // IF NOT EXISTS silently keeps the old table; if the provider changed the dim
+  // every subsequent INSERT will crash with an unhelpful vec0 error.
+  const existingRow = db.prepare(
+    `SELECT sql FROM sqlite_master WHERE type='table' AND name='vec_chunks'`
+  ).get() as { sql: string } | undefined;
+  if (existingRow) {
+    const m = existingRow.sql.match(/FLOAT\[(\d+)\]/i);
+    if (m) {
+      const existingDim = parseInt(m[1], 10);
+      if (existingDim !== wantDim) {
+        const providerName = (
+          process.env.NOX_EMBEDDING_PROVIDER ??
+          process.env.NOX_EMBED_PROVIDER ??
+          "gemini"
+        ).trim();
+        throw new Error(
+          `Embedding dim mismatch: vec_chunks is ${existingDim}-dim but provider ` +
+          `"${providerName}" produces ${wantDim}-dim. ` +
+          `Re-vectorize: clear vec_chunks and run \`nox-mem vectorize --force\`.`
+        );
+      }
+    }
+  }
+
   // Use activeEmbeddingDim() so the vec0 column dimension matches the active provider.
   // For the default Gemini path this resolves to EMBEDDING_DIM (3072) — no behaviour change.
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
-      embedding FLOAT[${activeEmbeddingDim()}]
+      embedding FLOAT[${wantDim}]
     );
     CREATE TABLE IF NOT EXISTS vec_chunk_map (
       vec_rowid INTEGER PRIMARY KEY,
