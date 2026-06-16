@@ -79,6 +79,7 @@ export function ensureGraphTables(): void {
       created_at TEXT DEFAULT (datetime('now')),
       expires_at TEXT DEFAULT (datetime('now', '+90 days')),
       last_confirmed TEXT DEFAULT (datetime('now')),
+      relation_reason TEXT DEFAULT 'unknown',
       FOREIGN KEY (source_entity_id) REFERENCES kg_entities(id),
       FOREIGN KEY (target_entity_id) REFERENCES kg_entities(id)
     );
@@ -95,11 +96,18 @@ export function ensureGraphTables(): void {
   const db2 = getDb();
   try { db2.exec(`ALTER TABLE kg_relations ADD COLUMN expires_at TEXT`); } catch { /* already exists */ }
   try { db2.exec(`ALTER TABLE kg_relations ADD COLUMN last_confirmed TEXT`); } catch { /* already exists */ }
+  // E05 edge typing: relation_reason column (default 'unknown' so existing rows
+  // and inserts without an explicit reason read back as 'unknown'). Consumed by
+  // impact.ts (blast-radius grouping) and lib/spo-injection.ts (vault facts).
+  try { db2.exec(`ALTER TABLE kg_relations ADD COLUMN relation_reason TEXT DEFAULT 'unknown'`); } catch { /* already exists */ }
   // Backfill values for existing rows
   db2.exec(`UPDATE kg_relations SET expires_at = datetime(created_at, '+90 days') WHERE expires_at IS NULL`);
   db2.exec(`UPDATE kg_relations SET last_confirmed = created_at WHERE last_confirmed IS NULL`);
+  db2.exec(`UPDATE kg_relations SET relation_reason = 'unknown' WHERE relation_reason IS NULL`);
   // Index on expires_at (safe now that column exists)
   try { db2.exec(`CREATE INDEX IF NOT EXISTS idx_kg_relations_expires ON kg_relations(expires_at)`); } catch { /* ok */ }
+  // Index on relation_reason (edge-typing lookups + impact grouping)
+  try { db2.exec(`CREATE INDEX IF NOT EXISTS idx_kg_relations_reason ON kg_relations(relation_reason)`); } catch { /* ok */ }
 }
 
 // ─── Entity extraction patterns ──────────────────────────────────────────────
