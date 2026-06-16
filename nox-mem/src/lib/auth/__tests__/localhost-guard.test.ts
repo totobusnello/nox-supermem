@@ -28,7 +28,7 @@ import {
   makeLocalhostGuard,
   isLocalhostIp,
   extractClientIp,
-} from "../localhost-guard.ts";
+} from "../localhost-guard.js";
 
 // ─── Minimal mock helpers ─────────────────────────────────────────────────────
 

@@ -9,7 +9,8 @@
  * Cases:
  *  - Gemini embedding: real embed call → Float32Array of dim 3072
  *  - Gemini LLM: real complete() call → non-empty text response
- *  - (OpenAI / Anthropic / Voyage: skipped until A3.1 — stubs only)
+ *  - OpenAI: live provider — surfaces MissingKeyError without credentials
+ *  - Anthropic: still a NotImplementedError stub
  */
 import { test, describe } from "node:test";
 import { strict as assert } from "node:assert";
@@ -63,13 +64,17 @@ describe("E2E real providers (gated: NOX_E2E_REAL_PROVIDERS=1)", () => {
     assert.ok((status.latencyMs ?? 0) > 0, "latency should be > 0 on real call");
   });
 
-  // Stubs: verify they are still stubs (A3.1 guard).
-  test("OpenAI stub does NOT hit network even with OPENAI_API_KEY set", async () => {
-    // This test always runs — verifies stubs don't accidentally become live.
+  // OpenAI is a live provider now: construction never throws, and a missing
+  // key surfaces as MissingKeyError on the first call (not NotImplementedError).
+  test("OpenAI live provider: no key → MissingKeyError, no network call", async () => {
+    // This test always runs — verifies the live provider fails closed without
+    // credentials rather than silently hitting the network.
     const { OpenAIEmbeddingProvider } = await import("../embedding/openai.js");
-    const { NotImplementedError } = await import("../types.js");
-    const p = new OpenAIEmbeddingProvider({ apiKey: process.env.OPENAI_API_KEY ?? "dummy" });
-    await assert.rejects(p.embed(["test"]), NotImplementedError);
+    const { MissingKeyError } = await import("../types.js");
+    // apiKey:"" forces the no-credentials path deterministically (ambient
+    // OPENAI_API_KEY env var is never consulted, so no network call is made).
+    const p = new OpenAIEmbeddingProvider({ apiKey: "" });
+    await assert.rejects(p.embed(["test"]), MissingKeyError);
   });
 
   test("Anthropic stub does NOT hit network even with ANTHROPIC_API_KEY set", async () => {

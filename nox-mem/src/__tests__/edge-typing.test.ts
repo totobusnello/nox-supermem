@@ -8,6 +8,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import {
   VALID_RELATION_REASONS,
@@ -15,7 +16,7 @@ import {
   type RelationReason,
 } from "../kg-llm.js";
 
-const TMP_ROOT = mkdtempSync("/var/backups/nox-mem-edge-test-");
+const TMP_ROOT = mkdtempSync(join(process.env.NOX_TEST_TMP_ROOT || tmpdir(), "nox-mem-edge-test-"));
 const TEST_DB = join(TMP_ROOT, "test.db");
 process.env.NOX_DB_PATH = TEST_DB;
 

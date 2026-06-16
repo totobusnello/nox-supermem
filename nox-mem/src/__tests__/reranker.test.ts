@@ -36,24 +36,16 @@ before(async () => {
   getTopKIn = rrMod.getTopKIn;
   getTopKOut = rrMod.getTopKOut;
 
-  // Bootstrap schema (ensures v16 applied).
+  // Bootstrap schema.
   const db = getDb();
   const v = (db.prepare("PRAGMA user_version").get() as any).user_version;
   assert.equal(v >= 16, true, `expected schema ≥16, got ${v}`);
 
-  // Confirma que as 6 cols existem em search_telemetry.
-  const cols = db.prepare("PRAGMA table_info(search_telemetry)").all() as Array<{ name: string }>;
-  const names = cols.map((c) => c.name);
-  for (const expected of [
-    "reranker_mode",
-    "reranker_top_k_in",
-    "reranker_top_k_out",
-    "reranker_latency_ms",
-    "reranker_position_changes",
-    "reranker_lift_score",
-  ]) {
-    assert.equal(names.includes(expected), true, `column ${expected} missing in search_telemetry`);
-  }
+  // NOTE (core kit): the search_telemetry reranker_* columns belonged to the
+  // telemetry-persistence plumbing that was trimmed from the public package.
+  // The reranker engine under test (rerank / computePositionChanges /
+  // computeLiftScore / mode parsing) is pure and does not depend on that
+  // schema, so the column assertion was dropped with the telemetry collector.
 });
 
 beforeEach(() => {

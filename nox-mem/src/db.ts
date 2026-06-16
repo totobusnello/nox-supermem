@@ -160,10 +160,18 @@ function ensureSchema(db: Database.Database): void {
   const row = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined;
   const currentVersion = row ? parseInt(row.value, 10) : 0;
 
-  if (currentVersion === SCHEMA_VERSION) return;
   if (currentVersion > SCHEMA_VERSION) {
     throw new Error(`DB schema ${currentVersion} > expected ${SCHEMA_VERSION}`);
   }
+
+  // Always re-align PRAGMA user_version with the canonical schema version, even
+  // when migrations are already applied (meta.schema_version is the source of
+  // truth). Covers the recovery scenario where user_version was manually reset
+  // to 0 (legacy/partial-restore DBs) while the meta row is current — re-open
+  // must re-bump the PRAGMA without reprocessing migrations. Idempotent.
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+
+  if (currentVersion === SCHEMA_VERSION) return;
 
   if (currentVersion < 1) migrateToV1(db);
   if (currentVersion < 2) migrateToV2(db);
@@ -192,6 +200,49 @@ function migrateToV8(db: Database.Database): void {
   try { db.exec(`ALTER TABLE chunks ADD COLUMN section TEXT`); } catch {}
   try { db.exec(`ALTER TABLE chunks ADD COLUMN section_boost REAL`); } catch {}
   db.exec(`CREATE INDEX IF NOT EXISTS idx_chunks_section ON chunks(section);`);
+
+  // Knowledge-graph schema. ensureGraphTables() (knowledge-graph.ts) creates
+  // these lazily on the first KG operation, but a clean install that calls
+  // impact.ts / lib/spo-injection.ts / kg-* before any KG write would hit
+  // "no such table: kg_relations". Materialize the canonical KG schema here so
+  // getDb() always provides it. Definitions mirror ensureGraphTables();
+  // relation_reason (E05 edge typing) defaults to 'unknown'.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kg_entities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      attributes TEXT,
+      first_seen TEXT DEFAULT (datetime('now')),
+      last_seen TEXT DEFAULT (datetime('now')),
+      mention_count INTEGER DEFAULT 1,
+      UNIQUE(name, entity_type)
+    );
+    CREATE TABLE IF NOT EXISTS kg_relations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_entity_id INTEGER NOT NULL,
+      relation_type TEXT NOT NULL,
+      target_entity_id INTEGER NOT NULL,
+      evidence_chunk_id INTEGER,
+      confidence REAL DEFAULT 0.8,
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT DEFAULT (datetime('now', '+90 days')),
+      last_confirmed TEXT DEFAULT (datetime('now')),
+      relation_reason TEXT DEFAULT 'unknown',
+      FOREIGN KEY (source_entity_id) REFERENCES kg_entities(id),
+      FOREIGN KEY (target_entity_id) REFERENCES kg_entities(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kg_entities_name ON kg_entities(name);
+    CREATE INDEX IF NOT EXISTS idx_kg_entities_type ON kg_entities(entity_type);
+    CREATE INDEX IF NOT EXISTS idx_kg_relations_source ON kg_relations(source_entity_id);
+    CREATE INDEX IF NOT EXISTS idx_kg_relations_target ON kg_relations(target_entity_id);
+    CREATE INDEX IF NOT EXISTS idx_kg_relations_expires ON kg_relations(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_kg_relations_reason ON kg_relations(relation_reason);
+  `);
+  // Idempotent column add for pre-existing KG tables (created before E05).
+  try { db.exec(`ALTER TABLE kg_relations ADD COLUMN relation_reason TEXT DEFAULT 'unknown'`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kg_relations_reason ON kg_relations(relation_reason)`); } catch {}
+  try { db.exec(`UPDATE kg_relations SET relation_reason = 'unknown' WHERE relation_reason IS NULL`); } catch {}
 }
 
 function migrateToV7(db: Database.Database): void {
