@@ -26,12 +26,12 @@
 
 <p align="center">
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-locomo-dark.svg"><img src="assets/readme/stat-locomo-light.svg" alt="+78.8% nDCG@10 vs baseline" height="64"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-longmemeval-dark.svg"><img src="assets/readme/stat-longmemeval-light.svg" alt="LongMemEval oracle validated" height="64"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-longmemeval-dark.svg"><img src="assets/readme/stat-longmemeval-light.svg" alt="LongMemEval nDCG@10 1.0 retrieval ceiling (oracle)" height="64"></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-latency-dark.svg"><img src="assets/readme/stat-latency-light.svg" alt="p50 latency" height="64"></picture>
   <br>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-scale-dark.svg"><img src="assets/readme/stat-scale-light.svg" alt="100k+ chunks, one SQLite file" height="64"></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-opex-dark.svg"><img src="assets/readme/stat-opex-light.svg" alt="under $11/mo all-in" height="64"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-tests-dark.svg"><img src="assets/readme/stat-tests-light.svg" alt="100% type-safe" height="64"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-tests-dark.svg"><img src="assets/readme/stat-tests-light.svg" alt="586 tests passing, 0 failing" height="64"></picture>
 </p>
 
 <p align="center">
@@ -143,7 +143,7 @@ set -a; source "$HOME/.nox-mem/.env"; set +a
 **3. Initialize & verify**
 
 ```bash
-nox-mem stats     # first run creates the v10 schema (11 tables) automatically — no migrations to run
+nox-mem stats     # first run auto-creates the schema — no migrations to run
 nox-mem doctor    # diagnostic: SQLite, FTS5, vector extension, config
 ```
 
@@ -251,20 +251,27 @@ The engine is the same core benchmarked in [`memoria-nox`](https://github.com/to
 | **Backbone portability** | **−10.54pp on backbone swap** | MemOS −16.72pp → **1.6× more portable** |
 | **Monthly OPEX** (embed + KG + VPS) | **< $11/mo** all-in | — |
 
-<sub>Methodology, paper, and full competitive analysis: [`memoria-nox`](https://github.com/totobusnello/memoria-nox). MemOS arXiv:2602.01313 · MuSiQue (Trivedi 2022) · HotPotQA (Yang 2018).</sub>
+<sub>
+<b>How to read these.</b> All results are 5-batch with 95% CI on the backbone noted; EverMemBench / MA / backbone-portability are on Gemini-3-flash.<br>
+&bull; <b>LoCoMo</b> is <i>retrieval@10 strict</i> (a retrieval metric) shown next to Mem0's reported F1 — different metrics, for scale, not a like-for-like claim.<br>
+&bull; <b>LongMemEval 1.0</b> is the <i>oracle retrieval ceiling</i> (gold answers in-corpus &rArr; nDCG@10 = 1.0), not an end-to-end inference score; standalone accuracy is ~68%.<br>
+&bull; <b>KG-path $0 / 769&times; cheaper</b> compares nox-mem's pure-SQL graph path (no LLM call) to Mem0 Cloud's per-query price (which includes inference) — true for that path only, apples-to-oranges by design.<br>
+&bull; <b>&lt; $11/mo</b> assumes the cheapest Hostinger VPS + Google AI Studio free tier.<br>
+&bull; <b>+78.8% nDCG@10</b> is vs an internal local-embedding baseline.<br>
+Methodology, paper, and full competitive analysis: <a href="https://github.com/totobusnello/memoria-nox"><code>memoria-nox</code></a>. MemOS arXiv:2602.01313 &middot; MuSiQue (Trivedi 2022) &middot; HotPotQA (Yang 2018).
+</sub>
 
 ---
 
 ## 🔌 Multi-provider
 
-Default is **Gemini via Google AI Studio** for both LLM and embeddings (`GEMINI_API_KEY`). Both axes are independently pluggable — no rebuild required.
+Default is **Gemini via Google AI Studio** for both LLM and embeddings (`GEMINI_API_KEY`). The **RAG answer/reflect layer and embeddings** are provider-pluggable at runtime — no rebuild:
 
-**LLM synthesis** supports `NOX_LLM_PROVIDER=gemini|openai|anthropic`. The `openai` value accepts any OpenAI-compatible base URL (DeepSeek, OpenRouter, Together, local Ollama/vLLM).
-
-**Embedding** supports `NOX_EMBEDDING_PROVIDER=gemini|openai|voyage`. The `openai` value likewise accepts any OpenAI-compatible endpoint.
+- **LLM** (`NOX_LLM_PROVIDER`) — `gemini` (default) or `openai`, where `openai` drives **any OpenAI-compatible endpoint**: OpenAI, DeepSeek, OpenRouter, Together, or a local Ollama/vLLM. `anthropic` is interface-ready but **not yet implemented**.
+- **Embedding** (`NOX_EMBEDDING_PROVIDER`) — `gemini` (default, 3072-d) or `openai` (any OpenAI-compatible embeddings endpoint). `voyage` is interface-ready but **not yet implemented**.
 
 ```bash
-# Example A — DeepSeek LLM + OpenAI embeddings
+# DeepSeek LLM + OpenAI embeddings (both OpenAI-compatible)
 NOX_LLM_PROVIDER=openai
 NOX_LLM_BASE_URL=https://api.deepseek.com/v1
 NOX_LLM_MODEL=deepseek-chat
@@ -275,12 +282,9 @@ NOX_EMBEDDING_BASE_URL=https://api.openai.com/v1
 NOX_EMBEDDING_MODEL=text-embedding-3-large
 NOX_EMBEDDING_DIM=3072        # MUST equal the vec0 table dim
 NOX_EMBEDDING_API_KEY=sk-...
-
-# Example B — Anthropic Claude LLM (keep Gemini embeddings, or swap independently)
-NOX_LLM_PROVIDER=anthropic
-NOX_LLM_MODEL=claude-3-5-haiku-20241022
-NOX_LLM_API_KEY=sk-ant-...    # or set ANTHROPIC_API_KEY
 ```
+
+> ℹ️ **Scope of provider routing today:** the RAG answer layer (`reflect` / `/api/answer`) and embeddings honor the env vars above. Some internal LLM operations — knowledge-graph extraction, consolidation, digest, and query expansion — still call Gemini directly and require `GEMINI_API_KEY` even when another provider is set. Routing every path through the provider layer is on the roadmap.
 
 > ⚠️ **Dimension lock:** the sqlite-vec table is created with a fixed dimension. Switching embedding provider or model requires re-embedding the **entire corpus** with a single model at a single dimension matching the `vec0` table. `text-embedding-3-large` supports `dimensions=3072` (same as the default Gemini table). Vectors from different models are not comparable — mixing silently corrupts semantic search. Full env reference: [`nox-mem/README.md`](./nox-mem/README.md).
 

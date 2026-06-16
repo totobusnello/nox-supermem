@@ -91,12 +91,12 @@ nox-mem stats
 
 | Var | Default | Purpose |
 |---|---|---|
-| `NOX_LLM_PROVIDER` | `gemini` | `gemini`, `openai` (any OpenAI-compatible endpoint), or `anthropic`. |
+| `NOX_LLM_PROVIDER` | `gemini` | `gemini` (default) or `openai` (any OpenAI-compatible endpoint). `anthropic` is interface-ready but not yet implemented. |
 | `NOX_LLM_MODEL` | `gemini-2.5-flash-lite` | LLM model id (e.g. `gpt-4o-mini`, `claude-3-5-haiku-20241022`). |
 | `NOX_LLM_BASE_URL` | provider default | OpenAI-compat base URL — DeepSeek/OpenRouter/Together/Ollama/vLLM. Ignored for `anthropic`. |
 | `NOX_LLM_API_KEY` | falls back to `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | LLM key. |
 | `NOX_LLM_FALLBACK` | — | Fallback chain, e.g. `openai:gpt-4o-mini`. |
-| `NOX_EMBEDDING_PROVIDER` | `gemini` | `gemini`, `openai` (any OpenAI-compat endpoint), or `voyage`. Alias: `NOX_EMBED_PROVIDER`. |
+| `NOX_EMBEDDING_PROVIDER` | `gemini` | `gemini` (default) or `openai` (any OpenAI-compat endpoint). `voyage` is interface-ready but not yet implemented. Alias: `NOX_EMBED_PROVIDER`. |
 | `NOX_EMBEDDING_MODEL` | `gemini-embedding-001` | Embedding model id (e.g. `text-embedding-3-large`, `voyage-3`). Alias: `NOX_EMBED_MODEL`. |
 | `NOX_EMBEDDING_BASE_URL` | provider default | Embedding base URL for OpenAI-compat providers. Alias: `NOX_EMBED_BASE_URL`. |
 | `NOX_EMBEDDING_API_KEY` | falls back to provider key | Embedding key. Alias: `NOX_EMBED_API_KEY`. |
@@ -115,7 +115,7 @@ nox-mem stats
 | `NOX_NAME_ALIASES` | empty | `from:To` name-normalization pairs for the KG. |
 | `NOX_ENTITY_PATTERNS` / `NOX_PROJECT_PATTERNS` | empty | Terms for the legacy regex entity extractor. |
 | `NOX_KNOWN_PROJECTS` | empty | Project slugs for `project-context-gen`. |
-| `NOX_AGENTS` / `NOX_AGENTS_DIR` | `nox,atlas,boris,cipher,forge,lex` / `/root/.openclaw/agents` | Multi-agent cross-search layout (no-op standalone). |
+| `NOX_AGENTS` / `NOX_AGENTS_DIR` | empty / — | Multi-agent cross-search layout (no-op standalone). |
 | `NOX_WATCH_DIRS` | origin layout | Comma-sep dirs for the file watcher. |
 | `NOX_SPEAKER_FILTER` | empty | One-time V7 migration speaker classification. |
 | `NOX_NOTION_TOKEN` / `NOX_NOTION_TOKEN_PATH` | — / `/root/.config/notion/api_key` | Optional Notion sync token (value or file path). |
@@ -126,11 +126,11 @@ nox-mem stats
 
 By default nox-mem uses **Gemini via Google AI Studio** for both LLM synthesis and embeddings (`GEMINI_API_KEY`, model `gemini-2.5-flash-lite`, embeddings `gemini-embedding-001` at 3072 dimensions).
 
-Both axes are independently pluggable at runtime — no rebuild required.
+The RAG answer/reflect layer and embeddings are provider-pluggable at runtime — no rebuild required. Note: some internal LLM operations (knowledge-graph extraction, consolidation, digest, query expansion) still call Gemini directly and require `GEMINI_API_KEY` even when another provider is set — full provider routing is on the roadmap.
 
-### LLM synthesis (reflect, answer, kg-extract)
+### LLM synthesis (reflect, answer)
 
-Supported values for `NOX_LLM_PROVIDER`: `gemini` (default) · `openai` (any OpenAI-compatible endpoint) · `anthropic`.
+Supported values for `NOX_LLM_PROVIDER`: `gemini` (default) · `openai` (any OpenAI-compatible endpoint). `anthropic` is interface-ready but not yet implemented.
 
 **Example — DeepSeek via direct API (OpenAI-compat):**
 ```bash
@@ -140,12 +140,7 @@ NOX_LLM_MODEL=deepseek-chat
 NOX_LLM_API_KEY=sk-...
 ```
 
-**Example — Anthropic Claude:**
-```bash
-NOX_LLM_PROVIDER=anthropic
-NOX_LLM_MODEL=claude-3-5-haiku-20241022
-NOX_LLM_API_KEY=sk-ant-...   # or set ANTHROPIC_API_KEY
-```
+> `anthropic` (LLM) and `voyage` (embeddings) are interface-ready stubs — not implemented yet. Use `gemini` or any OpenAI-compatible endpoint today.
 
 **Example — local Ollama:**
 ```bash
