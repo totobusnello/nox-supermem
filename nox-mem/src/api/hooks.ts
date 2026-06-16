@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { createPipeline, type TelemetrySink } from "../lib/hooks/pipeline.js";
 import { loadConfig, type HookConfig } from "../lib/hooks/config.js";
 import type { HookEvent, HookTelemetryRow } from "../lib/hooks/types.js";
+import { safeErrorMessage } from "../lib/api/safe-error-message.js";
 
 export interface HttpRequest {
   method: string;
@@ -96,7 +97,9 @@ export async function handleHooksRequest(
       }));
       return { status: 200, body: { rows: sanitized } };
     } catch (e) {
-      return { status: 500, body: { error: (e as Error).message } };
+      const { message, correlationId } = safeErrorMessage(e);
+      console.error(`[hooks] readRecent error [${correlationId}]:`, e);
+      return { status: 500, body: { error: message, correlationId } };
     }
   }
 
