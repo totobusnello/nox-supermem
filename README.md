@@ -258,7 +258,7 @@ The engine is the same core benchmarked in [`memoria-nox`](https://github.com/to
 &bull; <b>KG-path $0 / 769&times; cheaper</b> compares nox-mem's pure-SQL graph path (no LLM call) to Mem0 Cloud's per-query price (which includes inference) — true for that path only, apples-to-oranges by design.<br>
 &bull; <b>&lt; $11/mo</b> assumes the cheapest Hostinger VPS + Google AI Studio free tier.<br>
 &bull; <b>+78.8% nDCG@10</b> is vs an internal local-embedding baseline.<br>
-Methodology, paper, and full competitive analysis: <a href="https://github.com/totobusnello/memoria-nox"><code>memoria-nox</code></a>. MemOS arXiv:2602.01313 &middot; MuSiQue (Trivedi 2022) &middot; HotPotQA (Yang 2018).
+Step-by-step on what's reproducible from this package vs the research harness: <a href="REPRODUCE.md"><b>REPRODUCE.md</b></a>. Methodology, paper, and full competitive analysis: <a href="https://github.com/totobusnello/memoria-nox"><code>memoria-nox</code></a>. MemOS arXiv:2602.01313 &middot; MuSiQue (Trivedi 2022) &middot; HotPotQA (Yang 2018).
 </sub>
 
 ---
