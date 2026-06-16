@@ -89,9 +89,7 @@ node --version   # must be >= 20
 ### ⚡ Quick install (copy-paste)
 
 ```bash
-git clone https://github.com/totobusnello/nox-supermem.git
-cd nox-supermem/nox-mem
-npm ci && npm run build && npm install -g .      # or: bash ../install.sh  (--dry-run to preview)
+npm install -g nox-mem                           # published on npm — that's the whole install
 
 export GEMINI_API_KEY=AIza...                    # https://aistudio.google.com/apikey
 export NOX_DB_PATH="$HOME/.nox-mem/nox.db"
@@ -103,15 +101,16 @@ nox-mem stats && nox-mem search "hello"
 
 ### 👤 Step by step — for humans
 
-**1. Clone, build, install globally**
+**1. Install** — from npm (easiest), or from source if you want the agent profiles/templates too:
 
 ```bash
-git clone https://github.com/totobusnello/nox-supermem.git
-cd nox-supermem/nox-mem
-npm ci
-npm run build              # tsc → dist/
-npm install -g .           # exposes `nox-mem` globally
+# From npm (recommended)
+npm install -g nox-mem
 nox-mem --help
+
+# …or from source (also gets perfis/ + templates/)
+git clone https://github.com/totobusnello/nox-supermem.git
+cd nox-supermem/nox-mem && npm ci && npm run build && npm install -g .
 ```
 
 **2. Configure** — create a `.env` (template in [`nox-mem/.env.example`](./nox-mem/.env.example)):
@@ -162,9 +161,8 @@ Agents connect over **MCP** (preferred) or the **HTTP API**. The bootstrap is id
 # preconditions
 node --version | grep -qE 'v(2[0-9]|[3-9][0-9])' || { echo "need Node >=20"; exit 1; }
 
-# clone + build + install
-git clone https://github.com/totobusnello/nox-supermem.git
-cd nox-supermem/nox-mem && npm ci && npm run build && npm install -g .
+# install from npm
+npm install -g nox-mem
 
 # config
 export GEMINI_API_KEY="<key>" NOX_DB_PATH="/data/nox/nox.db" NOX_MEM_DIR="/data/nox/memory"
@@ -172,6 +170,9 @@ mkdir -p "$NOX_MEM_DIR"
 
 # verify schema
 nox-mem stats | grep -q "Chunks:" || { echo "schema init failed"; exit 1; }
+
+# resolve the MCP server path for the config below
+echo "MCP server: $(npm root -g)/nox-mem/dist/mcp-server.js"
 ```
 
 **2. Wire it as an MCP server** (recommended) — 20 tools (`nox_mem_search`, `nox_mem_ingest`, `nox_mem_primer`, `nox_mem_reflect`, `nox_mem_kg_query`, `nox_mem_decision_*`, `nox_mem_cross_search`, …). Add to your agent's MCP config (Claude Code `.mcp.json`, OpenClaw/Hermes equivalent):
@@ -181,7 +182,7 @@ nox-mem stats | grep -q "Chunks:" || { echo "schema init failed"; exit 1; }
   "mcpServers": {
     "nox-mem": {
       "command": "node",
-      "args": ["/abs/path/to/nox-supermem/nox-mem/dist/mcp-server.js"],
+      "args": ["<npm-root-g>/nox-mem/dist/mcp-server.js"],
       "env": {
         "GEMINI_API_KEY": "AIza...",
         "NOX_DB_PATH": "/data/nox/nox.db",
