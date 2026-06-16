@@ -1,6 +1,15 @@
-<h1 align="center">NOX-Supermem</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/banner-dark.svg">
+    <img alt="nox-mem — pain-weighted hybrid memory with shadow discipline" src="assets/readme/banner-light.svg" width="720">
+  </picture>
+</p>
 
-<p align="center"><em>Pain-weighted hybrid memory for AI agents &mdash; genuinely yours. SQLite on your disk, provider your choice, zero vendor lock-in.</em></p>
+<h1 align="center">Pain-weighted hybrid memory for AI agents &mdash; yours by design.</h1>
+
+<p align="center"><em>The only agent memory that&rsquo;s genuinely yours. SQLite on your disk, provider your choice, zero vendor lock-in.</em></p>
+
+<p align="center"><sub><strong>NOX-Supermem</strong> packages the <a href="https://github.com/totobusnello/memoria-nox"><code>nox-mem</code></a> engine for standalone, self-hosted use &mdash; CLI &middot; MCP server &middot; HTTP API.</sub></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Q-Quality-00C896?style=for-the-badge&labelColor=1A1A2E" alt="Quality: numbers #1">
@@ -13,26 +22,49 @@
   <a href="https://github.com/totobusnello/nox-supermem/stargazers"><img src="https://img.shields.io/github/stars/totobusnello/nox-supermem?style=for-the-badge&color=00C896" alt="Stars"></a>
   <a href="https://github.com/totobusnello/nox-supermem/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/totobusnello/nox-supermem/build.yml?style=for-the-badge&color=00C896&label=ci" alt="CI"></a>
   <img src="https://img.shields.io/badge/node-%E2%89%A520-00C896?style=for-the-badge" alt="Node >=20">
-  <img src="https://img.shields.io/badge/interfaces-CLI%20%C2%B7%20MCP%20%C2%B7%20HTTP-00C896?style=for-the-badge" alt="CLI · MCP · HTTP">
+  <img src="https://img.shields.io/badge/license-MIT-00C896?style=for-the-badge" alt="MIT">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/memory_benchmark-SOTA-00C896?style=flat-square&labelColor=1A1A2E" alt="Memory benchmark SOTA">
-  <img src="https://img.shields.io/badge/KG_path-2.5ms_p50-00C896?style=flat-square&labelColor=1A1A2E" alt="KG path 2.5ms p50">
-  <img src="https://img.shields.io/badge/KG_query-%240.00-00C896?style=flat-square&labelColor=1A1A2E" alt="$0.00 per KG query">
-  <img src="https://img.shields.io/badge/footprint-399MB_single_process-00C896?style=flat-square&labelColor=1A1A2E" alt="399MB single process">
-  <img src="https://img.shields.io/badge/store-1_SQLite_file-00C896?style=flat-square&labelColor=1A1A2E" alt="1 SQLite file">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-locomo-dark.svg"><img src="assets/readme/stat-locomo-light.svg" alt="+78.8% nDCG@10 vs baseline" height="64"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-longmemeval-dark.svg"><img src="assets/readme/stat-longmemeval-light.svg" alt="LongMemEval oracle validated" height="64"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-latency-dark.svg"><img src="assets/readme/stat-latency-light.svg" alt="p50 latency" height="64"></picture>
+  <br>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-scale-dark.svg"><img src="assets/readme/stat-scale-light.svg" alt="94.9k chunks · 21.5k relations" height="64"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-opex-dark.svg"><img src="assets/readme/stat-opex-light.svg" alt="under $11/mo all-in" height="64"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/stat-tests-dark.svg"><img src="assets/readme/stat-tests-light.svg" alt="tests passing" height="64"></picture>
 </p>
 
 <p align="center">
-  <a href="#-install">⚡ Install</a> &middot;
-  <a href="#-step-by-step--for-humans">👤 For humans</a> &middot;
-  <a href="#-step-by-step--for-agents-openclaw--hermes--others">🤖 For agents</a> &middot;
-  <a href="#-the-numbers">📊 Numbers</a> &middot;
-  <a href="#-multi-provider">🔌 Multi-provider</a>
+  <a href="#%EF%B8%8F-how-it-works">🏗️ How it works</a> &middot;
+  <a href="#-install">🚀 Install</a> &middot;
+  <a href="#-step-by-step--for-humans">👤 Humans</a> &middot;
+  <a href="#-step-by-step--for-agents-openclaw--hermes--others">🤖 Agents</a> &middot;
+  <a href="#-the-numbers">📊 Numbers</a>
 </p>
 
-Long-term memory engine that any agent (OpenClaw, Hermes, Claude Code, custom) can use to *remember decisions, search past context, and never ask "where were we?" again.* Hybrid retrieval (FTS5 keyword + vector semantic + reciprocal-rank fusion), a knowledge graph, and salience ranking that weights what hurt to forget. The engine lives in [`nox-mem/`](./nox-mem) and ships with **no data** — your memory starts empty.
+Long-term memory engine that any agent (OpenClaw, Hermes, Claude Code, custom) can use to *remember decisions, search past context, and never ask "where were we?" again.* The engine lives in [`nox-mem/`](./nox-mem) and ships with **no data** — your memory starts empty.
+
+---
+
+## 🏗️ How it works
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/architecture-dark.svg">
+    <img alt="Hybrid retrieval architecture: ingest → SQLite store (chunks + FTS5 + sqlite-vec + KG) → parallel BM25 ∥ semantic → RRF fusion → salience rank → answer" src="assets/readme/architecture-light.svg" width="900">
+  </picture>
+</p>
+
+**Five layers, one SQLite file:**
+
+1. **Ingest** — router auto-detects entity files (`compiled` / `frontmatter` / `timeline` sections), plain markdown, or graphify input. A privacy filter applies redaction patterns before anything is stored.
+2. **Store** — chunks land in SQLite with an FTS5 index plus a 3072-d Gemini vector via `sqlite-vec`. Retention is typed: `feedback`/`person` never decay, `lesson` 180d, `decision`/`project` 365d, default 90d.
+3. **Retrieve** — the query runs in parallel through FTS5 BM25 and Gemini semantic; **RRF fusion (k=60)** merges them, with language-aware weights.
+4. **Rank** — **salience** (`recency × pain × importance`) composes additively with section and temporal boosts. *Shadow discipline:* ranking changes ship in shadow mode for 7 days before they ever touch a live query.
+5. **Answer** — CLI, MCP, and HTTP surfaces with citation footers and an anti-hallucination guard.
+
+Copy the SQLite file, you copy the memory. Switch the embedding provider, the store doesn't care.
 
 ---
 
@@ -185,6 +217,13 @@ If `NOX_API_TOKEN` is set, send `Authorization: Bearer <token>`.
 ## 📊 The numbers
 
 The engine is the same core benchmarked in [`memoria-nox`](https://github.com/totobusnello/memoria-nox). All results 5-batch + 95% CI verified.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/comparison-chart-dark.svg">
+    <img alt="nox-mem vs MemOS / Mem0 / Zep across memory benchmarks" src="assets/readme/comparison-chart-light.svg" width="820">
+  </picture>
+</p>
 
 ### Memory & multi-hop SOTA
 
