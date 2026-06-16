@@ -25,57 +25,28 @@
 </p>
 
 <p align="center">
-  <a href="#-quick-install">⚡ Install</a> &middot;
-  <a href="#-three-ways-to-use-it">Interfaces</a> &middot;
-  <a href="#-for-ai-agents-openclaw--hermes--others">For agents</a> &middot;
-  <a href="#-the-numbers">Numbers</a> &middot;
-  <a href="#-multi-provider">Multi-provider</a>
+  <a href="#-install">⚡ Install</a> &middot;
+  <a href="#-step-by-step--for-humans">👤 For humans</a> &middot;
+  <a href="#-step-by-step--for-agents-openclaw--hermes--others">🤖 For agents</a> &middot;
+  <a href="#-the-numbers">📊 Numbers</a> &middot;
+  <a href="#-multi-provider">🔌 Multi-provider</a>
 </p>
 
 Long-term memory engine that any agent (OpenClaw, Hermes, Claude Code, custom) can use to *remember decisions, search past context, and never ask "where were we?" again.* Hybrid retrieval (FTS5 keyword + vector semantic + reciprocal-rank fusion), a knowledge graph, and salience ranking that weights what hurt to forget. The engine lives in [`nox-mem/`](./nox-mem) and ships with **no data** — your memory starts empty.
 
 ---
 
-## ⚡ Quick Install
+## 🚀 Install
 
-```bash
-# 1. Get it + build (needs Node 20+, build-essential, python3)
-git clone https://github.com/totobusnello/nox-supermem.git
-cd nox-supermem/nox-mem
-npm ci && npm run build && npm install -g .
+Pick your interface — same engine, one SQLite file behind all three:
 
-# 2. Point it at a key + a place to store memory
-export GEMINI_API_KEY=AIza...                 # https://aistudio.google.com/apikey
-export NOX_DB_PATH="$HOME/.nox-mem/nox.db"
-export NOX_MEM_DIR="$HOME/.nox-mem/memory"
-mkdir -p "$HOME/.nox-mem/memory"
-
-# 3. Use it
-nox-mem stats                                 # first run creates the schema (empty)
-nox-mem ingest "$HOME/.nox-mem/memory/note.md"
-nox-mem vectorize
-nox-mem search "what did we decide?"
-```
-
-> 🐧 **One-liner installer:** `bash install.sh` (add `--dry-run` to preview). 🍎 macOS / 🐧 Linux. Full step-by-step (humans) and a deterministic bootstrap (agents) are below.
-
----
-
-## 🧩 Three ways to use it
-
-| Interface | Command | Best for |
+| Interface | Entry point | Best for |
 |---|---|---|
 | **CLI** | `nox-mem <cmd>` | humans, scripts, cron |
-| **MCP server** | `node nox-mem/dist/mcp-server.js` | **agents** (OpenClaw, Hermes, Claude Code…) — 20 tools |
+| **MCP server** | `node nox-mem/dist/mcp-server.js` | **agents** (OpenClaw, Hermes, Claude Code) — 20 tools |
 | **HTTP API** | `node nox-mem/dist/api-server.js` | services, dashboards, remote agents |
 
-**Stack:** TypeScript · Node 20+ · SQLite (FTS5 + sqlite-vec) · Gemini embeddings by default · any OpenAI-compatible API optional.
-
----
-
-## 📥 Installation — step by step (humans)
-
-### 0. Prerequisites (Linux / macOS)
+**Prerequisites (Linux / macOS):** Node 20+, plus `build-essential` and `python3` (compile the native `better-sqlite3` / `sqlite-vec` modules).
 
 ```bash
 # Debian/Ubuntu
@@ -83,9 +54,24 @@ sudo apt-get update && sudo apt-get install -y build-essential python3 inotify-t
 node --version   # must be >= 20
 ```
 
-`build-essential` + `python3` compile the native modules (`better-sqlite3`, `sqlite-vec`). `inotify-tools` is only needed for the optional file watcher.
+### ⚡ Quick install (copy-paste)
 
-### 1–2. Clone, build, install
+```bash
+git clone https://github.com/totobusnello/nox-supermem.git
+cd nox-supermem/nox-mem
+npm ci && npm run build && npm install -g .      # or: bash ../install.sh  (--dry-run to preview)
+
+export GEMINI_API_KEY=AIza...                    # https://aistudio.google.com/apikey
+export NOX_DB_PATH="$HOME/.nox-mem/nox.db"
+export NOX_MEM_DIR="$HOME/.nox-mem/memory"
+mkdir -p "$HOME/.nox-mem/memory"
+
+nox-mem stats && nox-mem search "hello"
+```
+
+### 👤 Step by step — for humans
+
+**1. Clone, build, install globally**
 
 ```bash
 git clone https://github.com/totobusnello/nox-supermem.git
@@ -96,9 +82,7 @@ npm install -g .           # exposes `nox-mem` globally
 nox-mem --help
 ```
 
-### 3. Configure
-
-Create a `.env` (template in [`nox-mem/.env.example`](./nox-mem/.env.example)):
+**2. Configure** — create a `.env` (template in [`nox-mem/.env.example`](./nox-mem/.env.example)):
 
 ```bash
 # Required
@@ -112,7 +96,7 @@ NOX_API_HOST=127.0.0.1
 # NOX_API_TOKEN=change-me              # if set, API requires Authorization: Bearer <token>
 ```
 
-Always load it before running the CLI in a shell, cron, or service:
+Load it before running the CLI in any shell, cron, or service:
 
 ```bash
 set -a; source /root/.nox-mem/.env; set +a
@@ -120,14 +104,14 @@ set -a; source /root/.nox-mem/.env; set +a
 
 > ⚠️ Without sourcing the env, `vectorize`/`kg-*` fail **silently** ("Done: 0 embedded").
 
-### 4. Initialize & verify
+**3. Initialize & verify**
 
 ```bash
 nox-mem stats     # first run creates the v10 schema (11 tables) automatically — no migrations to run
 nox-mem doctor    # diagnostic: SQLite, FTS5, vector extension, config
 ```
 
-### 5. Ingest, embed, search
+**4. Ingest, embed, search**
 
 ```bash
 nox-mem ingest /path/to/notes.md     # plain markdown is fine
@@ -136,33 +120,29 @@ nox-mem search "what did we decide about pricing"
 nox-mem primer                       # ~500-token context-recovery summary
 ```
 
----
+### 🤖 Step by step — for agents (OpenClaw / Hermes / others)
 
-## 🤖 For AI agents (OpenClaw / Hermes / others)
+Agents connect over **MCP** (preferred) or the **HTTP API**. The bootstrap is idempotent — each step verifies before continuing.
 
-Agents connect over **MCP** (preferred) or the **HTTP API**. The bootstrap below is idempotent — each step verifies before continuing.
-
-### Deterministic bootstrap (run in order; stop on first failure)
+**1. Deterministic bootstrap** (run in order; stop on first failure)
 
 ```bash
-# 1. preconditions
+# preconditions
 node --version | grep -qE 'v(2[0-9]|[3-9][0-9])' || { echo "need Node >=20"; exit 1; }
 
-# 2. clone + build + install
+# clone + build + install
 git clone https://github.com/totobusnello/nox-supermem.git
 cd nox-supermem/nox-mem && npm ci && npm run build && npm install -g .
 
-# 3. config
+# config
 export GEMINI_API_KEY="<key>" NOX_DB_PATH="/data/nox/nox.db" NOX_MEM_DIR="/data/nox/memory"
 mkdir -p "$NOX_MEM_DIR"
 
-# 4. verify schema
+# verify schema
 nox-mem stats | grep -q "Chunks:" || { echo "schema init failed"; exit 1; }
 ```
 
-### As an MCP server (recommended)
-
-20 tools (`nox_mem_search`, `nox_mem_ingest`, `nox_mem_primer`, `nox_mem_reflect`, `nox_mem_kg_query`, `nox_mem_decision_*`, `nox_mem_cross_search`, …). Add to your agent's MCP config (Claude Code `.mcp.json`, OpenClaw/Hermes equivalent):
+**2. Wire it as an MCP server** (recommended) — 20 tools (`nox_mem_search`, `nox_mem_ingest`, `nox_mem_primer`, `nox_mem_reflect`, `nox_mem_kg_query`, `nox_mem_decision_*`, `nox_mem_cross_search`, …). Add to your agent's MCP config (Claude Code `.mcp.json`, OpenClaw/Hermes equivalent):
 
 ```json
 {
@@ -180,9 +160,9 @@ nox-mem stats | grep -q "Chunks:" || { echo "schema init failed"; exit 1; }
 }
 ```
 
-The agent calls `nox_mem_search` to recall and `nox_mem_ingest` to store. Run `nox_mem_primer` at session start for context recovery. Three reusable agent profiles (`assistente-pessoal`, `financeiro`, `pesquisador`) live in [`perfis/`](./perfis); generic SOUL/HEARTBEAT/IDENTITY templates in [`templates/`](./templates).
+The agent calls `nox_mem_search` to recall and `nox_mem_ingest` to store. Run `nox_mem_primer` at session start for context recovery. Reusable agent profiles (`assistente-pessoal`, `financeiro`, `pesquisador`) live in [`perfis/`](./perfis); generic SOUL/HEARTBEAT/IDENTITY templates in [`templates/`](./templates).
 
-### As an HTTP API
+**3. Or wire it as an HTTP API**
 
 ```bash
 set -a; source /data/nox/.env; set +a
