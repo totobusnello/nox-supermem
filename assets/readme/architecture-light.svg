@@ -1,5 +1,5 @@
-<svg width="1200" height="780" viewBox="0 0 1200 780" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="nox-mem hybrid retrieval architecture: markdown and entity files ingest into a chunks table with FTS5 BM25 lexical search and Gemini 3072 dimensional vector search, fused via RRF k equals 60, salience boosted by recency pain and importance, served through the hybrid search HTTP API. Light theme.">
-  <title>nox-mem — Hybrid Retrieval Architecture</title>
+<svg width="1200" height="780" viewBox="0 0 1200 780" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NOX-Supermem hybrid retrieval architecture: markdown and entity files ingest into a chunks table with FTS5 BM25 lexical search and Gemini 3072 dimensional vector search, fused via RRF k equals 60, salience boosted by recency pain and importance, served through the hybrid search HTTP API. Light theme.">
+  <title>NOX-Supermem — Hybrid Retrieval Architecture</title>
 
   <defs>
     <linearGradient id="bg-l" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -84,7 +84,7 @@
   <rect width="1200" height="780" fill="url(#bg-l)"/>
   <rect width="1200" height="780" fill="url(#grid-l)" opacity="0.6"/>
 
-  <text x="60" y="58" fill="#0F172A" font-family="'JetBrains Mono', 'Menlo', 'Consolas', monospace" font-size="13" font-weight="700" letter-spacing="1.5">NOX-MEM</text>
+  <text x="60" y="58" fill="#0F172A" font-family="'JetBrains Mono', 'Menlo', 'Consolas', monospace" font-size="13" font-weight="700" letter-spacing="1.5">NOX-SUPERMEM</text>
   <text x="60" y="82" fill="#475569" font-family="'Inter', -apple-system, system-ui, sans-serif" font-size="22" font-weight="600" letter-spacing="-0.4">Hybrid retrieval architecture</text>
   <text x="60" y="106" fill="#64748B" font-family="'Inter', -apple-system, system-ui, sans-serif" font-size="13" font-weight="400">BM25 lexical + Gemini 3072d semantic, fused with RRF, ranked by salience</text>
 
@@ -144,10 +144,10 @@
   <line x1="369" y1="228" x2="387" y2="228" stroke="#334155" stroke-width="1.25"/>
 
   <text x="394" y="220" fill="#475569" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9" letter-spacing="1.2" font-weight="700">STORAGE · SQLITE</text>
-  <text x="394" y="232" fill="#94A3B8" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9">single file · ~1.24 GB</text>
+  <text x="394" y="232" fill="#94A3B8" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9">single file · ~single file</text>
 
   <text x="468" y="266" fill="#0F172A" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="22" font-weight="700" text-anchor="middle">chunks</text>
-  <text x="468" y="285" fill="#475569" font-family="'Inter', system-ui, sans-serif" font-size="12" text-anchor="middle">68,995 rows · schema v18</text>
+  <text x="468" y="285" fill="#475569" font-family="'Inter', system-ui, sans-serif" font-size="12" text-anchor="middle">your chunks · schema v10</text>
 
   <g>
     <rect x="376" y="298" width="78" height="22" rx="11" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
@@ -266,7 +266,7 @@
     <rect x="60" y="600" width="1080" height="138" rx="14" fill="url(#node-api-l)" stroke="#00C896" stroke-width="1.5"/>
   </g>
   <circle cx="80" cy="628" r="4" fill="#00C896"/>
-  <text x="94" y="624" fill="#00876A" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9" letter-spacing="1.5" font-weight="700">HYBRID SEARCH API · :18802</text>
+  <text x="94" y="624" fill="#00876A" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9" letter-spacing="1.5" font-weight="700">HYBRID SEARCH API · :18800</text>
   <text x="94" y="652" fill="#0F172A" font-family="'Inter', system-ui, sans-serif" font-size="17" font-weight="600">Surface for agents, dashboards, MCP</text>
 
   <g>
@@ -337,5 +337,5 @@
     <text x="18" y="81" fill="#475569" font-family="'Inter', system-ui, sans-serif" font-size="10">salience signals (recency × pain)</text>
   </g>
 
-  <text x="1140" y="760" fill="#94A3B8" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9" text-anchor="end" letter-spacing="1.2">nox-mem · hybrid memory with shadow discipline</text>
+  <text x="1140" y="760" fill="#94A3B8" font-family="'JetBrains Mono', 'Menlo', monospace" font-size="9" text-anchor="end" letter-spacing="1.2">NOX-Supermem · hybrid memory with shadow discipline</text>
 </svg>
