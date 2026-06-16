@@ -1,0 +1,62 @@
+# Source & dev
+src/
+tsconfig.json
+*.tsbuildinfo
+
+# Compiled map files (keep .js, drop .map)
+dist/**/*.map
+
+# Tests
+dist/__tests__/
+__tests__/
+
+# Database files (never ship a DB)
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Backups and snapshots
+backups/
+dist/backups/
+
+# Evaluation / research
+eval/
+dist/eval/
+
+# Bak files
+*.bak
+*.bak-*
+*.bak1
+*.bak2
+*.bak3
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Cache
+cache/
+dist/cache/
+.cache/
+.node_repl_history
+
+# Reports and audits
+reports/
+dist/reports/
+audits/
+
+# Logs
+*.log
+logs/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Service / watcher files (runtime artifacts)
+nox-mem-watcher.service
+nox-mem-watch.sh
+config.example.json
+prompts/

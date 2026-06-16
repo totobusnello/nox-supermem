@@ -1,0 +1,47 @@
+name: Build & Smoke Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nox-mem
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: nox-mem/package-lock.json
+
+      - name: Install system deps (required by better-sqlite3)
+        run: sudo apt-get install -y build-essential python3
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Smoke test — CLI help
+        run: node dist/index.js --help
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for real hardcoded secrets (API keys / tokens)..."
+          # Match actual credential shapes — not config paths. /root/... appears in
+          # legitimate env fallbacks by design; only real keys/tokens should fail CI.
+          if grep -rnE '(AIza[0-9A-Za-z_-]{20,}|sk-[a-zA-Z0-9]{20,}|ntn_[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{30,})' src --include='*.ts' | grep -viE '__tests__|\.test\.ts|example|redact|fixture'; then
+            echo "Hardcoded secret found!"
+            exit 1
+          fi
+          echo "No hardcoded secrets found"

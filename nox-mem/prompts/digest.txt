@@ -1,0 +1,5 @@
+Resuma a semana em 3-5 bullets objetivos.
+Inclua: decisões-chave, lições aprendidas, progresso de projetos, pendências.
+Formato: Markdown com bullets. Máximo 500 palavras. Português direto.
+Dados da semana:
+---

@@ -1,0 +1,18 @@
+[Unit]
+Description=NOX-Supermem File Watcher — monitora memory/ e dispara ingest automático
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash __NOX_MEM_PATH__/nox-mem-watch.sh
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=__NOX_MEM_PATH__
+Restart=always
+RestartSec=5
+StandardOutput=append:/tmp/nox-mem-watcher.log
+StandardError=append:/tmp/nox-mem-watcher.log
+
+[Install]
+WantedBy=multi-user.target
