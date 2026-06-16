@@ -14,10 +14,11 @@ import { updateSessionState } from "./session-update.js";
 import { getStats } from "./stats.js";
 import { primer } from "./primer.js";
 import { createInterface } from "readline";
+import { VERSION } from "./version.js";
 
 const SERVER_INFO = {
   name: "nox-mem",
-  version: "3.0.0",
+  version: VERSION,
 };
 
 const TOOLS = [

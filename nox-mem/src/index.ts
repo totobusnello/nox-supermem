@@ -17,12 +17,13 @@ import { getTierStats, evaluateTiers } from "./tier-manager.js";
 import { getNoiseStats, isNoise } from "./noise-filter.js";
 import { distillSessions } from "./session-distill.js";
 import { startWatch } from "./watch.js";
+import { VERSION } from "./version.js";
 
 
 
 const program = new Command();
 
-program.name("nox-mem").description("Nox Supermem — search, consolidate, recover").version("2.3.0");
+program.name("nox-mem").description("Nox Supermem — search, consolidate, recover").version(VERSION);
 
 program
   .command("search <query>")
