@@ -18,6 +18,7 @@ import { getVaultFacts } from "./lib/spo-injection.js";
 import { getEvalMetricsSnapshot } from "./lib/eval.js";
 import { execFileSync } from "child_process";
 import { applyCorsHeaders, handlePreflight } from "./api/cors.js";
+import { safeErrorMessage } from "./lib/api/safe-error-message.js";
 import { registerWireUpRoutes } from "./api/wire-up.js";
 import { handleBrief } from "./api/brief.js";
 import { handleIngestEvent } from "./api/ingest-event.js";
@@ -47,9 +48,6 @@ const HOST = process.env.NOX_API_HOST || "127.0.0.1";
 function json(res: ServerResponse, data: unknown, status = 200) {
   res.writeHead(status, {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Agent-Name",
   });
   res.end(JSON.stringify(data));
 }
@@ -417,7 +415,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         if ("text" in out) {
           res.writeHead(out.status, {
             "Content-Type": "text/plain; charset=utf-8",
-            "Access-Control-Allow-Origin": "*",
           });
           res.end(out.text);
         } else {
@@ -562,7 +559,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         }, 404);
     }
   } catch (err) {
-    json(res, { error: String(err) }, 500);
+    const { message, correlationId } = safeErrorMessage(err);
+    console.error(`[nox-mem-api] unhandled error [${correlationId}]:`, err);
+    json(res, { error: message, correlationId }, 500);
   }
 }
 
