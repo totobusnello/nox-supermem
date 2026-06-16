@@ -15,7 +15,6 @@ import { getRetentionDistribution, countArchiveCandidates, getSalienceDistributi
 import { getSalienceMode, type SalienceMode } from "./salience.js";
 import { getOpAuditStats, reapZombies } from "./lib/op-audit.js";
 import { getVaultFacts } from "./lib/spo-injection.js";
-import { getEvalMetricsSnapshot } from "./lib/eval.js";
 import { execFileSync } from "child_process";
 import { applyCorsHeaders, handlePreflight } from "./api/cors.js";
 import { safeErrorMessage } from "./lib/api/safe-error-message.js";
@@ -27,17 +26,6 @@ import {
   handleObsRecentOps,
   handleObsCanaryTail,
 } from "./observability.js";
-import { handleObsEvals } from "./evals.js";
-import {
-  recordRequest,
-  handleObsTelemetry,
-} from "./lib/telemetry-collector.js";
-import {
-  handleObsShadow,
-  tracker as shadowTracker,
-} from "./lib/shadow-tracker.js";
-import { join } from "path";
-import { readFileSync as fsReadFile, statSync as fsStat } from "fs";
 
 const PORT = parseInt(process.env.NOX_API_PORT || "18800");
 // Security 2026-04-23: bind to loopback by default (was 0.0.0.0).
@@ -300,68 +288,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         break;
       }
 
-      case "/api/observability/evals": {
-        const params = parseQuery(url);
-        const limit = parseInt(params.limit || "500", 10);
-        const dbSource = params.db_source || params.dbSource || undefined;
-        // Explicit auditsRoot pointing to workspace-level audits dir
-        // (default `cwd/../audits` resolves to `tools/audits` em VPS, errado).
-        const workspace = process.env.OPENCLAW_WORKSPACE ?? "/root/.openclaw/workspace";
-        json(res, handleObsEvals(
-          { dbSource, limit: Number.isFinite(limit) ? limit : 500 },
-          { auditsRoot: `${workspace}/audits` },
-        ));
-        break;
-      }
-
-      case "/api/observability/telemetry": {
-        // F10 Phase C Phase 1 (2026-05-24): in-process latency/throughput telemetry.
-        const params = parseQuery(url);
-        json(res, handleObsTelemetry(params));
-        break;
-      }
-
-      case "/api/observability/shadow": {
-        // F10 Phase D (2026-05-24): shadow-mode baseline-vs-candidate A/B comparisons.
-        const params = parseQuery(url);
-        json(res, handleObsShadow(params));
-        break;
-      }
-
-      case "/observability/health.html":
-      case "/observability/health.js":
-      case "/observability/health.css":
-      case "/observability/evals.html":
-      case "/observability/evals.js":
-      case "/observability/evals.css":
-      case "/observability/telemetry.html":
-      case "/observability/telemetry.js":
-      case "/observability/telemetry.css":
-      case "/observability/shadow.html":
-      case "/observability/shadow.js":
-      case "/observability/shadow.css":
-      case "/observability/gate-annotations.json": {
-        const filename = path.split("/").pop()!;
-        const fullPath = join(process.cwd(), "public", "observability", filename);
-        try {
-          fsStat(fullPath);
-          const body = fsReadFile(fullPath, "utf-8");
-          const ext = filename.split(".").pop();
-          const ct =
-            ext === "html" ? "text/html; charset=utf-8" :
-            ext === "js"   ? "application/javascript; charset=utf-8" :
-            ext === "css"  ? "text/css; charset=utf-8" :
-            ext === "json" ? "application/json; charset=utf-8" :
-            "application/octet-stream";
-          res.writeHead(200, { "Content-Type": ct, "Cache-Control": "no-store" });
-          res.end(body);
-        } catch {
-          res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("not found");
-        }
-        break;
-      }
-
       case "/api/agents": {
         json(res, profileAllAgents());
         break;
@@ -391,12 +317,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         break;
       }
 
-      case "/api/eval-metrics": {
-        // R01a (2026-05-02): eval harness metrics surface.
-        json(res, getEvalMetricsSnapshot());
-        break;
-      }
-
       case "/api/ingest-event": {
         // F4b Fluxo D (2026-06-04): write-side do Session Priming Loop —
         // digest de sessão vira chunk type=daily/90d, dedup por session_id.
@@ -423,8 +343,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         break;
       }
             case "/api/search": {
-        // F10 Phase C Phase 1 (2026-05-24): in-process telemetry capture
-        const _t0 = Date.now();
         // 2026-05-05 fix: accept both GET (query string) and POST (JSON body).
         // Previously POST silently failed with q-required because parseQuery only reads URL.
         let qText: string | undefined;
@@ -454,26 +372,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         // E03a (2026-05-02): SPO injection envelope. Mode shadow → compute+log only.
         // Mode active → surface vaultFacts in response. Mode off → no compute.
         const vf = getVaultFacts(qText, getDb());
-        // F10 Phase C: record request telemetry (fire-and-forget, sync, zero overhead).
-        // searchHybrid returns Array<Result> directly OR { results: [...], meta: {...} }
-        // depending on search.ts version. Probe both shapes; fall back safely.
-        const _isArr = Array.isArray(results);
-        const _resArr = _isArr
-          ? (results as unknown[])
-          : (results as { results?: unknown[] })?.results;
-        const _meta = _isArr
-          ? undefined
-          : (results as { meta?: { path_used?: string; semantic_used?: boolean } })?.meta;
-        const _pathUsed = _meta?.path_used ?? "hybrid";
-        const _semantic = _meta?.semantic_used !== false; // default true
-        recordRequest(
-          "search",
-          _t0,
-          Date.now(),
-          Array.isArray(_resArr) ? _resArr.length : 0,
-          _pathUsed,
-          _semantic,
-        );
         if (vf.surface && vf.block) {
           json(res, { results, vaultFacts: vf.block });
         } else {
@@ -549,12 +447,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
             "/api/health", "/api/health/lite", "/api/agents", "/api/kg", "/api/kg/path",
             "/api/search", "/api/brief", "/api/ingest-event", "/api/cross-kg", "/api/reflect",
             "/api/procedures", "/api/crystallize", "/api/crystallize/validate",
+            "/api/answer",
             "/api/observability/health", "/api/observability/recent-ops",
-            "/api/observability/canary-tail", "/observability/health.html",
-            "/api/observability/evals", "/observability/evals.html",
-            "/api/observability/telemetry", "/observability/telemetry.html",
-            "/api/observability/shadow", "/observability/shadow.html",
-            "/observability/gate-annotations.json"
+            "/api/observability/canary-tail"
           ]
         }, 404);
     }
@@ -574,17 +469,6 @@ server.listen(PORT, HOST, () => {
     if (reaped > 0) console.log(`[nox-mem-api] reaped ${reaped} zombie ops_audit rows on startup`);
   } catch (err) {
     console.error(`[nox-mem-api] reapZombies failed:`, err);
-  }
-
-  // F10 Phase D (2026-05-24): wire shared DB handle into the shadow tracker
-  // singleton so append-only shadow_runs persistence is live for any caller
-  // that invokes recordShadowComparison(). Schema was applied via out-of-band
-  // migration (CHANGE 0 Option B in api-server.shadow-wire-up.md).
-  try {
-    shadowTracker.setDB(getDb());
-    console.log(`[nox-mem-api] shadow tracker DB handle wired`);
-  } catch (err) {
-    console.error(`[nox-mem-api] shadow tracker setDB failed (persistence will fall back to in-memory only):`, err);
   }
 
   // D01 (2026-05-07): pre-warm reranker model se mode != off pra evitar p95 cold-start (~12-90s).

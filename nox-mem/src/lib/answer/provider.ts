@@ -89,11 +89,38 @@ export class MockProvider implements LLMProvider {
 }
 
 /**
- * placeholderGemini — explicit failure surface; the VPS-side apply step
- * replaces this with a real `@google/genai` client. Keeping it as an
- * explicit throw prevents accidental real-network calls during tests.
+ * LazyGeminiProvider — defers construction of the real `GeminiLLMProvider`
+ * (which throws `MissingKeyError` without `GEMINI_API_KEY`) until the first
+ * `complete()` call. This keeps module import + `selectProvider()` key-free
+ * (so the CLI/tests can select `mock` without credentials), while a real
+ * Gemini call still fails closed with `MissingKeyError` when no key is set.
  */
-const placeholderGemini: LLMProvider = new GeminiLLMProvider({});
+class LazyGeminiProvider implements LLMProvider {
+  public readonly name = "gemini";
+  private impl: GeminiLLMProvider | null = null;
+
+  private get provider(): GeminiLLMProvider {
+    if (!this.impl) this.impl = new GeminiLLMProvider({});
+    return this.impl;
+  }
+
+  public async complete(opts: LLMCallOpts): Promise<LLMCallResult> {
+    const r = await this.provider.complete({
+      user: opts.user,
+      system: opts.system,
+      maxTokens: opts.maxTokens,
+      temperature: opts.temperature,
+    });
+    return {
+      text: r.text,
+      tokensIn: r.tokensIn,
+      tokensOut: r.tokensOut,
+      latencyMs: r.latencyMs,
+    };
+  }
+}
+
+const placeholderGemini: LLMProvider = new LazyGeminiProvider();
 
 /**
  * Select a provider by name. Honours `NOX_ANSWER_PROVIDER` env when no

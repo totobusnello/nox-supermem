@@ -12,11 +12,12 @@
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import { tmpdir } from "node:os";
 
-const TMP_ROOT = mkdtempSync("/var/backups/nox-mem-test-");
+const TMP_ROOT = realpathSync(mkdtempSync(join(process.env.NOX_TEST_TMP_ROOT || tmpdir(), "nox-mem-test-")));
 const TEST_DB = join(TMP_ROOT, "test.db");
 const TEST_SNAP_DIR = join(TMP_ROOT, "snapshots");
 

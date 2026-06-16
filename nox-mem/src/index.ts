@@ -113,11 +113,7 @@ program
   .description("Consolidate daily notes into topic files (requires Ollama)")
   .action(async () => {
     const { consolidate } = await import("./consolidate.js");
-    const { syncToNotion } = await import("./notion-sync.js");
     const result = await consolidate();
-    if (result.notionItems.length > 0) {
-      await syncToNotion(result.notionItems);
-    }
     if (result.remaining > 0) {
       console.log(`[INFO] ${result.remaining} daily notes still pending — run again or wait for next cron`);
     }
@@ -129,11 +125,7 @@ program
   .description("Retry consolidation of previously failed daily notes")
   .action(async () => {
     const { consolidate } = await import("./consolidate.js");
-    const { syncToNotion } = await import("./notion-sync.js");
-    const result = await consolidate({ retryFailed: true });
-    if (result.notionItems.length > 0) {
-      await syncToNotion(result.notionItems);
-    }
+    await consolidate({ retryFailed: true });
     closeDb();
   });
 
@@ -144,20 +136,6 @@ program
     const { digest } = await import("./digest.js");
     await digest();
     closeDb();
-  });
-
-program
-  .command("sync-notion")
-  .description("Re-sync last consolidation items to Notion")
-  .action(async () => {
-    const { syncToNotion, loadSyncLog } = await import("./notion-sync.js");
-    const items = loadSyncLog();
-    if (items.length === 0) {
-      console.log("[INFO] No items to sync — run consolidate first");
-      return;
-    }
-    console.log(`[INFO] Re-syncing ${items.length} items from last consolidation...`);
-    await syncToNotion(items);
   });
 
 program

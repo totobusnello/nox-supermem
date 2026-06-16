@@ -23,7 +23,7 @@ import {
   MAX_TIMESTAMP_DRIFT_MS,
   serverTimestampMs,
   serverTimestampIso,
-} from "../ran-at-guard.ts";
+} from "../ran-at-guard.js";
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 

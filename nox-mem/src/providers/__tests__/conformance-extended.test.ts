@@ -36,7 +36,7 @@ import { VoyageEmbeddingProvider } from "../embedding/voyage.js";
 import { GeminiLLMProvider } from "../llm/gemini.js";
 import { OpenAILLMProvider } from "../llm/openai.js";
 import { AnthropicLLMProvider } from "../llm/anthropic.js";
-import { NotImplementedError } from "../types.js";
+import { NotImplementedError, MissingKeyError } from "../types.js";
 import { LLMFallbackChain } from "../llm/chain.js";
 import { CostCappedProvider } from "../../lib/cost-cap.js";
 import type { EmbeddingProvider } from "../embedding/types.js";
@@ -67,15 +67,18 @@ function mockLLMFetch() {
   });
 }
 
+// OpenAI is a live provider: apiKey:"" forces the deterministic no-credentials
+// path (MissingKeyError) so the conformance loops never consult the ambient
+// OPENAI_API_KEY env var nor make a network call.
 const ALL_EMBEDDING_PROVIDERS: EmbeddingProvider[] = [
   new GeminiEmbeddingProvider({ apiKey: FAKE_KEY, fetchFn: mockEmbedFetch(3072) as never }),
-  new OpenAIEmbeddingProvider(),
+  new OpenAIEmbeddingProvider({ apiKey: "" }),
   new VoyageEmbeddingProvider(),
 ];
 
 const ALL_LLM_PROVIDERS: LLMProvider[] = [
   new GeminiLLMProvider({ apiKey: FAKE_KEY, fetchFn: mockLLMFetch() as never }),
-  new OpenAILLMProvider(),
+  new OpenAILLMProvider({ apiKey: "" }),
   new AnthropicLLMProvider(),
 ];
 
@@ -88,7 +91,7 @@ describe("EmbeddingProvider conformance — all providers", () => {
     assert.deepEqual(result, []);
   });
 
-  test("all providers: embed() returns Float32Array[] or NotImplementedError", async () => {
+  test("all providers: embed() returns Float32Array[] or NotImplementedError/MissingKeyError", async () => {
     for (const p of ALL_EMBEDDING_PROVIDERS) {
       try {
         const result = await p.embed(["test input"]);
@@ -97,7 +100,12 @@ describe("EmbeddingProvider conformance — all providers", () => {
           assert.ok(result[0] instanceof Float32Array, `${p.name}: each element should be Float32Array`);
         }
       } catch (err) {
-        assert.ok(err instanceof NotImplementedError, `${p.name}: only NotImplementedError allowed, got: ${err}`);
+        // Stubs throw NotImplementedError; live providers (OpenAI) without a key
+        // surface MissingKeyError. Both are acceptable conformance outcomes.
+        assert.ok(
+          err instanceof NotImplementedError || err instanceof MissingKeyError,
+          `${p.name}: only NotImplementedError/MissingKeyError allowed, got: ${err}`,
+        );
       }
     }
   });
@@ -140,7 +148,7 @@ describe("EmbeddingProvider conformance — all providers", () => {
 // ─── LLM conformance ─────────────────────────────────────────────────────────
 
 describe("LLMProvider conformance — all providers", () => {
-  test("all providers: complete() returns CompleteResult shape or NotImplementedError", async () => {
+  test("all providers: complete() returns CompleteResult shape or NotImplementedError/MissingKeyError", async () => {
     for (const p of ALL_LLM_PROVIDERS) {
       try {
         const result = await p.complete({ user: "hello" });
@@ -149,8 +157,12 @@ describe("LLMProvider conformance — all providers", () => {
         assert.equal(typeof result.tokensOut, "number", `${p.name}: tokensOut must be number`);
         assert.equal(typeof result.latencyMs, "number", `${p.name}: latencyMs must be number`);
       } catch (err) {
-        assert.ok(err instanceof NotImplementedError,
-          `${p.name}: only NotImplementedError allowed from complete(), got: ${err}`);
+        // Stubs throw NotImplementedError; live providers (OpenAI) without a key
+        // surface MissingKeyError. Both are acceptable conformance outcomes.
+        assert.ok(
+          err instanceof NotImplementedError || err instanceof MissingKeyError,
+          `${p.name}: only NotImplementedError/MissingKeyError allowed from complete(), got: ${err}`,
+        );
       }
     }
   });
@@ -187,7 +199,9 @@ describe("LLMProvider conformance — all providers", () => {
   });
 
   test("stub providers: NotImplementedError names the provider", async () => {
-    const stubs: LLMProvider[] = [new OpenAILLMProvider(), new AnthropicLLMProvider()];
+    // OpenAI is a live provider now (throws MissingKeyError, not
+    // NotImplementedError) — only Anthropic remains a NotImplementedError stub.
+    const stubs: LLMProvider[] = [new AnthropicLLMProvider()];
     for (const p of stubs) {
       let err: Error | undefined;
       try {
@@ -232,9 +246,9 @@ describe("Chain/wrapper LLMProvider conformance", () => {
 describe("Secret hygiene conformance", () => {
   test("stub errors do NOT contain API key patterns", async () => {
     const stubs: Array<EmbeddingProvider | LLMProvider> = [
-      new OpenAIEmbeddingProvider(),
+      new OpenAIEmbeddingProvider({ apiKey: "" }),
       new VoyageEmbeddingProvider(),
-      new OpenAILLMProvider(),
+      new OpenAILLMProvider({ apiKey: "" }),
       new AnthropicLLMProvider(),
     ];
     const keyPattern = /AIza[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{20,}|Bearer\s+[A-Za-z0-9._-]{20,}/;

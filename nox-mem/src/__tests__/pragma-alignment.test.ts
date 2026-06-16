@@ -11,8 +11,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import { tmpdir } from "node:os";
 
-const TMP_ROOT = mkdtempSync("/var/backups/nox-mem-pragma-test-");
+const TMP_ROOT = mkdtempSync(join(process.env.NOX_TEST_TMP_ROOT || tmpdir(), "nox-mem-pragma-test-"));
 const TEST_DB = join(TMP_ROOT, "test.db");
 
 // Set BEFORE importing db (module-load reads env).

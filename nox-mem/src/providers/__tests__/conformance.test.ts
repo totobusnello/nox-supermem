@@ -4,18 +4,18 @@
  * Each provider MUST:
  *   - expose the locked readonly fields (name, model | dimensions etc.)
  *   - return a HealthStatus-shaped object from healthCheck()
- *   - stubs MUST throw NotImplementedError on the work method
+ *   - live providers (OpenAI) surface MissingKeyError on the work method when
+ *     no credentials are present; remaining stubs throw NotImplementedError
  *
- * Cases (10):
+ * Cases:
  *  - GeminiEmbedding readonly fields (name/dim/max/cost)
  *  - GeminiLLM readonly fields (name/model/contextWindow)
- *  - OpenAIEmbedding stub throws on embed()
- *  - OpenAILLM stub throws on complete()
- *  - AnthropicLLM stub throws on complete()
- *  - VoyageEmbedding stub throws on embed()
- *  - All stubs return ok=false with error from healthCheck()
- *  - Errors from stubs are NotImplementedError subclass
- *  - Stub healthCheck() never throws (returns ok=false instead)
+ *  - OpenAIEmbedding (live) throws MissingKeyError on embed() without a key
+ *  - OpenAILLM (live) throws MissingKeyError on complete() without a key
+ *  - AnthropicLLM stub throws NotImplementedError on complete()
+ *  - VoyageEmbedding stub throws NotImplementedError on embed()
+ *  - All providers return ok=false with error from healthCheck()
+ *  - Provider healthCheck() never throws (returns ok=false instead)
  *  - Conformance shape for HealthStatus (ok required, error iff !ok)
  */
 import { test, describe } from "node:test";
@@ -27,7 +27,7 @@ import { OpenAIEmbeddingProvider } from "../embedding/openai.js";
 import { OpenAILLMProvider } from "../llm/openai.js";
 import { AnthropicLLMProvider } from "../llm/anthropic.js";
 import { VoyageEmbeddingProvider } from "../embedding/voyage.js";
-import { NotImplementedError } from "../types.js";
+import { NotImplementedError, MissingKeyError } from "../types.js";
 
 const FAKE_KEY = "AIzaTESTtestTESTtestTESTtestTESTtest";
 
@@ -48,15 +48,18 @@ describe("Gemini provider readonly fields", () => {
   });
 });
 
-describe("Stub providers throw NotImplementedError on work methods", () => {
-  test("OpenAIEmbeddingProvider.embed() throws NotImplementedError", async () => {
-    const p = new OpenAIEmbeddingProvider();
-    await assert.rejects(p.embed(["hi"]), NotImplementedError);
+describe("Provider work methods reject without credentials", () => {
+  // apiKey:"" forces the no-credentials path deterministically (the `??`
+  // resolution treats "" as a present-but-empty key, so the ambient
+  // OPENAI_API_KEY env var is never consulted and no network call is made).
+  test("OpenAIEmbeddingProvider.embed() throws MissingKeyError (live provider, no key)", async () => {
+    const p = new OpenAIEmbeddingProvider({ apiKey: "" });
+    await assert.rejects(p.embed(["hi"]), MissingKeyError);
   });
 
-  test("OpenAILLMProvider.complete() throws NotImplementedError", async () => {
-    const p = new OpenAILLMProvider();
-    await assert.rejects(p.complete({ user: "hi" }), NotImplementedError);
+  test("OpenAILLMProvider.complete() throws MissingKeyError (live provider, no key)", async () => {
+    const p = new OpenAILLMProvider({ apiKey: "" });
+    await assert.rejects(p.complete({ user: "hi" }), MissingKeyError);
   });
 
   test("AnthropicLLMProvider.complete() throws NotImplementedError", async () => {
@@ -71,8 +74,8 @@ describe("Stub providers throw NotImplementedError on work methods", () => {
 });
 
 describe("Stub healthCheck conformance (T8)", () => {
-  test("OpenAI embedding stub returns ok=false with error", async () => {
-    const p = new OpenAIEmbeddingProvider();
+  test("OpenAI embedding returns ok=false with error when no key", async () => {
+    const p = new OpenAIEmbeddingProvider({ apiKey: "" });
     const s = await p.healthCheck();
     assert.equal(s.ok, false);
     assert.ok(s.error && s.error.length > 0);
@@ -93,10 +96,10 @@ describe("Stub healthCheck conformance (T8)", () => {
     assert.ok(s.error && s.error.length > 0);
   });
 
-  test("Stub healthCheck never throws (returns ok=false)", async () => {
+  test("provider healthCheck never throws (returns ok=false)", async () => {
     const stubs = [
-      new OpenAIEmbeddingProvider(),
-      new OpenAILLMProvider(),
+      new OpenAIEmbeddingProvider({ apiKey: "" }),
+      new OpenAILLMProvider({ apiKey: "" }),
       new AnthropicLLMProvider(),
       new VoyageEmbeddingProvider(),
     ];
