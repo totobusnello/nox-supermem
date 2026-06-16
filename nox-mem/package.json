@@ -38,7 +38,7 @@
     "node": ">=20"
   },
   "bin": {
-    "nox-mem": "./dist/index.js"
+    "nox-mem": "dist/index.js"
   },
   "files": [
     "dist",
