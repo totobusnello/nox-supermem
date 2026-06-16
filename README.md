@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE.md"><img src="https://img.shields.io/github/license/totobusnello/nox-supermem?style=for-the-badge&color=00C896" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/totobusnello/nox-supermem?style=for-the-badge&color=00C896" alt="License: MIT"></a>
   <a href="https://github.com/totobusnello/nox-supermem/stargazers"><img src="https://img.shields.io/github/stars/totobusnello/nox-supermem?style=for-the-badge&color=00C896" alt="Stars"></a>
   <a href="https://github.com/totobusnello/nox-supermem/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/totobusnello/nox-supermem/build.yml?style=for-the-badge&color=00C896&label=ci" alt="CI"></a>
   <img src="https://img.shields.io/badge/node-%E2%89%A520-00C896?style=for-the-badge" alt="Node >=20">
@@ -123,8 +123,8 @@ cd nox-supermem/nox-mem && npm ci && npm run build && npm install -g .
 ```bash
 # Required
 GEMINI_API_KEY=AIza...                 # Google AI Studio key
-NOX_DB_PATH=/root/.nox-mem/nox.db      # SQLite database (any path you can write)
-NOX_MEM_DIR=/root/.nox-mem/memory      # folder of markdown memories
+NOX_DB_PATH=$HOME/.nox-mem/nox.db      # SQLite database (any path you can write)
+NOX_MEM_DIR=$HOME/.nox-mem/memory      # folder of markdown memories
 
 # HTTP API (optional) — code default port is 18800; 18802 recommended to avoid clashes
 NOX_API_PORT=18802
@@ -135,7 +135,7 @@ NOX_API_HOST=127.0.0.1
 Load it before running the CLI in any shell, cron, or service:
 
 ```bash
-set -a; source /root/.nox-mem/.env; set +a
+set -a; source "$HOME/.nox-mem/.env"; set +a
 ```
 
 > ⚠️ Without sourcing the env, `vectorize`/`kg-*` fail **silently** ("Done: 0 embedded").

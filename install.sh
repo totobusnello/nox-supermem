@@ -2,6 +2,9 @@
 # =============================================================================
 # NOX-Supermem — Standalone Installer
 # =============================================================================
+# ⚠️  LINUX VPS ONLY — uses apt/yum/dnf, systemd, and inotify-tools.
+#     macOS / Windows: use  npm i -g nox-mem  instead (no script needed).
+# =============================================================================
 # Installs the nox-mem engine from this directory (tarball or git clone).
 # Does NOT require OpenClaw. Works on any Linux VPS with Node 20+.
 #
@@ -22,6 +25,15 @@
 # =============================================================================
 
 set -euo pipefail
+
+# Platform check — this script targets Linux VPS only
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo ""
+  echo "⚠️  install.sh is Linux VPS only (apt/systemd/inotify)."
+  echo "   macOS / Windows: run  npm i -g nox-mem  instead."
+  echo ""
+  exit 1
+fi
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; BOLD='\033[1m'; RESET='\033[0m'

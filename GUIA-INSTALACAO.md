@@ -7,7 +7,8 @@
 
 O nox-mem é um motor de memória para agentes AI: ele indexa arquivos Markdown, constrói um grafo de conhecimento e expõe busca híbrida (FTS5 + embeddings semânticos + RRF). Roda como processo Node.js em qualquer VPS Linux. **Não depende do OpenClaw** — pode ser usado com qualquer agente.
 
-**Não existe pacote publicado no npm.** A instalação é via tarball ou clone do repositório.
+**Pacote npm disponível:** `npm i -g nox-mem` (recomendado para macOS/Windows e instalações simples).
+`install.sh` é para **Linux VPS** (usa apt/systemd/inotify) — veja abaixo.
 
 ---
 
@@ -68,7 +69,9 @@ cd nox-supermem/
 
 ---
 
-## Seção 4 — Instalar (1 comando)
+## Seção 4 — Instalar
+
+> ⚠️ **`install.sh` é Linux VPS only** (apt/systemd/inotify-tools). macOS/Windows: use `npm i -g nox-mem`.
 
 ```bash
 bash install.sh
