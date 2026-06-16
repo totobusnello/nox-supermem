@@ -63,6 +63,7 @@ export function ensureGraphTables(): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       entity_type TEXT NOT NULL,
+      attributes TEXT,
       first_seen TEXT DEFAULT (datetime('now')),
       last_seen TEXT DEFAULT (datetime('now')),
       mention_count INTEGER DEFAULT 1,
@@ -86,6 +87,9 @@ export function ensureGraphTables(): void {
     CREATE INDEX IF NOT EXISTS idx_kg_relations_source ON kg_relations(source_entity_id);
     CREATE INDEX IF NOT EXISTS idx_kg_relations_target ON kg_relations(target_entity_id);
   `);
+
+  // Idempotent: add attributes column to DBs created before this fix
+  try { db.exec(`ALTER TABLE kg_entities ADD COLUMN attributes TEXT`); } catch { /* already exists */ }
 
   // Migrate existing tables: add TTL columns if they don't exist
   const db2 = getDb();

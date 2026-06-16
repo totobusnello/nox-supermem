@@ -175,6 +175,8 @@ function ensureSchema(db: Database.Database): void {
   if (currentVersion < 18) migrateToV8(db);
 
   db.prepare("INSERT OR REPLACE INTO meta (key, value, updated_at) VALUES ('schema_version', ?, datetime('now'))").run(String(SCHEMA_VERSION));
+  // Keep PRAGMA user_version in sync so op-audit and tests can rely on it.
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
 }
 
 function migrateToV8(db: Database.Database): void {
