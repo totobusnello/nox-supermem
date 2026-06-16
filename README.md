@@ -1,16 +1,67 @@
-# NOX-Supermem
+<h1 align="center">NOX-Supermem</h1>
 
-> **Pain-weighted hybrid memory for AI agents.** Self-hosted, multi-provider, zero vendor lock-in. MIT.
+<p align="center"><em>Pain-weighted hybrid memory for AI agents &mdash; genuinely yours. SQLite on your disk, provider your choice, zero vendor lock-in.</em></p>
 
-Long-term memory engine that any agent (OpenClaw, Hermes, Claude Code, custom) can use to *remember decisions, search past context, and never ask "where were we?" again.* Hybrid retrieval (FTS5 keyword + vector semantic + reciprocal-rank fusion), a knowledge graph, and salience ranking that weights what hurt to forget.
+<p align="center">
+  <img src="https://img.shields.io/badge/Q-Quality-00C896?style=for-the-badge&labelColor=1A1A2E" alt="Quality: numbers #1">
+  <img src="https://img.shields.io/badge/A-Autonomy-00C896?style=for-the-badge&labelColor=1A1A2E" alt="Autonomy: data yours, provider yours">
+  <img src="https://img.shields.io/badge/P-Product-00C896?style=for-the-badge&labelColor=1A1A2E" alt="Product: UX that ships">
+</p>
 
-**Stack:** TypeScript · Node 20+ · SQLite (FTS5 + sqlite-vec) · Gemini embeddings by default · any OpenAI-compatible API optional.
+<p align="center">
+  <a href="LICENSE.md"><img src="https://img.shields.io/github/license/totobusnello/nox-supermem?style=for-the-badge&color=00C896" alt="License: MIT"></a>
+  <a href="https://github.com/totobusnello/nox-supermem/stargazers"><img src="https://img.shields.io/github/stars/totobusnello/nox-supermem?style=for-the-badge&color=00C896" alt="Stars"></a>
+  <a href="https://github.com/totobusnello/nox-supermem/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/totobusnello/nox-supermem/build.yml?style=for-the-badge&color=00C896&label=ci" alt="CI"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A520-00C896?style=for-the-badge" alt="Node >=20">
+  <img src="https://img.shields.io/badge/interfaces-CLI%20%C2%B7%20MCP%20%C2%B7%20HTTP-00C896?style=for-the-badge" alt="CLI · MCP · HTTP">
+</p>
 
-The engine lives in [`nox-mem/`](./nox-mem). It ships with **no data** — your memory starts empty.
+<p align="center">
+  <img src="https://img.shields.io/badge/memory_benchmark-SOTA-00C896?style=flat-square&labelColor=1A1A2E" alt="Memory benchmark SOTA">
+  <img src="https://img.shields.io/badge/KG_path-2.5ms_p50-00C896?style=flat-square&labelColor=1A1A2E" alt="KG path 2.5ms p50">
+  <img src="https://img.shields.io/badge/KG_query-%240.00-00C896?style=flat-square&labelColor=1A1A2E" alt="$0.00 per KG query">
+  <img src="https://img.shields.io/badge/footprint-399MB_single_process-00C896?style=flat-square&labelColor=1A1A2E" alt="399MB single process">
+  <img src="https://img.shields.io/badge/store-1_SQLite_file-00C896?style=flat-square&labelColor=1A1A2E" alt="1 SQLite file">
+</p>
+
+<p align="center">
+  <a href="#-quick-install">⚡ Install</a> &middot;
+  <a href="#-three-ways-to-use-it">Interfaces</a> &middot;
+  <a href="#-for-ai-agents-openclaw--hermes--others">For agents</a> &middot;
+  <a href="#-the-numbers">Numbers</a> &middot;
+  <a href="#-multi-provider">Multi-provider</a>
+</p>
+
+Long-term memory engine that any agent (OpenClaw, Hermes, Claude Code, custom) can use to *remember decisions, search past context, and never ask "where were we?" again.* Hybrid retrieval (FTS5 keyword + vector semantic + reciprocal-rank fusion), a knowledge graph, and salience ranking that weights what hurt to forget. The engine lives in [`nox-mem/`](./nox-mem) and ships with **no data** — your memory starts empty.
 
 ---
 
-## Three ways to use it
+## ⚡ Quick Install
+
+```bash
+# 1. Get it + build (needs Node 20+, build-essential, python3)
+git clone https://github.com/totobusnello/nox-supermem.git
+cd nox-supermem/nox-mem
+npm ci && npm run build && npm install -g .
+
+# 2. Point it at a key + a place to store memory
+export GEMINI_API_KEY=AIza...                 # https://aistudio.google.com/apikey
+export NOX_DB_PATH="$HOME/.nox-mem/nox.db"
+export NOX_MEM_DIR="$HOME/.nox-mem/memory"
+mkdir -p "$HOME/.nox-mem/memory"
+
+# 3. Use it
+nox-mem stats                                 # first run creates the schema (empty)
+nox-mem ingest "$HOME/.nox-mem/memory/note.md"
+nox-mem vectorize
+nox-mem search "what did we decide?"
+```
+
+> 🐧 **One-liner installer:** `bash install.sh` (add `--dry-run` to preview). 🍎 macOS / 🐧 Linux. Full step-by-step (humans) and a deterministic bootstrap (agents) are below.
+
+---
+
+## 🧩 Three ways to use it
 
 | Interface | Command | Best for |
 |---|---|---|
@@ -18,30 +69,11 @@ The engine lives in [`nox-mem/`](./nox-mem). It ships with **no data** — your 
 | **MCP server** | `node nox-mem/dist/mcp-server.js` | **agents** (OpenClaw, Hermes, Claude Code…) — 20 tools |
 | **HTTP API** | `node nox-mem/dist/api-server.js` | services, dashboards, remote agents |
 
----
-
-## TL;DR (copy-paste)
-
-```bash
-git clone https://github.com/totobusnello/nox-supermem.git
-cd nox-supermem/nox-mem
-npm ci && npm run build && npm install -g .      # needs Node 20+, build-essential, python3
-
-export GEMINI_API_KEY=AIza...                    # https://aistudio.google.com/apikey
-export NOX_DB_PATH="$HOME/.nox-mem/nox.db"
-export NOX_MEM_DIR="$HOME/.nox-mem/memory"
-mkdir -p "$HOME/.nox-mem/memory"
-
-nox-mem stats                                    # creates schema v10 on first run
-echo "# my first memory" > "$HOME/.nox-mem/memory/note.md"
-nox-mem ingest "$HOME/.nox-mem/memory/note.md"
-nox-mem vectorize
-nox-mem search "first memory"
-```
+**Stack:** TypeScript · Node 20+ · SQLite (FTS5 + sqlite-vec) · Gemini embeddings by default · any OpenAI-compatible API optional.
 
 ---
 
-## Installation — step by step (humans)
+## 📥 Installation — step by step (humans)
 
 ### 0. Prerequisites (Linux / macOS)
 
@@ -53,25 +85,11 @@ node --version   # must be >= 20
 
 `build-essential` + `python3` compile the native modules (`better-sqlite3`, `sqlite-vec`). `inotify-tools` is only needed for the optional file watcher.
 
-### 1. Get the code
+### 1–2. Clone, build, install
 
 ```bash
 git clone https://github.com/totobusnello/nox-supermem.git
-cd nox-supermem
-```
-
-### 2. Build & install the engine
-
-Either the one-liner installer:
-
-```bash
-bash install.sh            # add --dry-run to preview without changing anything
-```
-
-…or manually:
-
-```bash
-cd nox-mem
+cd nox-supermem/nox-mem
 npm ci
 npm run build              # tsc → dist/
 npm install -g .           # exposes `nox-mem` globally
@@ -120,9 +138,9 @@ nox-mem primer                       # ~500-token context-recovery summary
 
 ---
 
-## Installation — for AI agents (OpenClaw / Hermes / others)
+## 🤖 For AI agents (OpenClaw / Hermes / others)
 
-Agents should connect over **MCP** (preferred) or the **HTTP API**. The deterministic bootstrap below is idempotent — each step verifies before continuing.
+Agents connect over **MCP** (preferred) or the **HTTP API**. The bootstrap below is idempotent — each step verifies before continuing.
 
 ### Deterministic bootstrap (run in order; stop on first failure)
 
@@ -134,19 +152,17 @@ node --version | grep -qE 'v(2[0-9]|[3-9][0-9])' || { echo "need Node >=20"; exi
 git clone https://github.com/totobusnello/nox-supermem.git
 cd nox-supermem/nox-mem && npm ci && npm run build && npm install -g .
 
-# 3. config (export or write .env)
+# 3. config
 export GEMINI_API_KEY="<key>" NOX_DB_PATH="/data/nox/nox.db" NOX_MEM_DIR="/data/nox/memory"
 mkdir -p "$NOX_MEM_DIR"
 
-# 4. verify schema + health
+# 4. verify schema
 nox-mem stats | grep -q "Chunks:" || { echo "schema init failed"; exit 1; }
 ```
 
-### As an MCP server (recommended for agents)
+### As an MCP server (recommended)
 
-The MCP server exposes **20 tools** (`nox_mem_search`, `nox_mem_ingest`, `nox_mem_primer`, `nox_mem_reflect`, `nox_mem_kg_query`, `nox_mem_decision_*`, `nox_mem_cross_search`, …).
-
-Add this to your agent's MCP config (Claude Code `.mcp.json`, OpenClaw/Hermes equivalent):
+20 tools (`nox_mem_search`, `nox_mem_ingest`, `nox_mem_primer`, `nox_mem_reflect`, `nox_mem_kg_query`, `nox_mem_decision_*`, `nox_mem_cross_search`, …). Add to your agent's MCP config (Claude Code `.mcp.json`, OpenClaw/Hermes equivalent):
 
 ```json
 {
@@ -164,7 +180,7 @@ Add this to your agent's MCP config (Claude Code `.mcp.json`, OpenClaw/Hermes eq
 }
 ```
 
-The agent then calls `nox_mem_search` to recall and `nox_mem_ingest` to store. Run `nox-mem primer` (or the MCP `nox_mem_primer` tool) at session start for context recovery.
+The agent calls `nox_mem_search` to recall and `nox_mem_ingest` to store. Run `nox_mem_primer` at session start for context recovery. Three reusable agent profiles (`assistente-pessoal`, `financeiro`, `pesquisador`) live in [`perfis/`](./perfis); generic SOUL/HEARTBEAT/IDENTITY templates in [`templates/`](./templates).
 
 ### As an HTTP API
 
@@ -172,8 +188,6 @@ The agent then calls `nox_mem_search` to recall and `nox_mem_ingest` to store. R
 set -a; source /data/nox/.env; set +a
 node "$(npm root -g)/nox-mem/dist/api-server.js"      # or: node nox-mem/dist/api-server.js from the repo
 ```
-
-Endpoints on `http://$NOX_API_HOST:$NOX_API_PORT`:
 
 | Endpoint | Purpose |
 |---|---|
@@ -188,9 +202,37 @@ If `NOX_API_TOKEN` is set, send `Authorization: Bearer <token>`.
 
 ---
 
-## Multi-provider (LLM + embeddings)
+## 📊 The numbers
 
-Default is **Gemini via Google AI Studio**. To run the LLM/embeddings against any **OpenAI-compatible** endpoint (DeepSeek, OpenRouter, Together, local Ollama/vLLM), set:
+The engine is the same core benchmarked in [`memoria-nox`](https://github.com/totobusnello/memoria-nox). All results 5-batch + 95% CI verified.
+
+### Memory & multi-hop SOTA
+
+| Benchmark | nox-mem | Best competitor | Δ |
+|---|---:|---|---:|
+| **EverMemBench Overall** (Gemini-3-flash) | **63.28%** | MemOS 42.55% | **+20.73pp** |
+| **EverMemBench MA composite** | **88.42%** | MemOS 55.68% | **+32.74pp** |
+| **LoCoMo retrieval@10 strict** | **74.52%** | Mem0 SOTA F1 66.88% | above |
+| **MuSiQue F1** (n=2,417, single-shot) | **58.62%** | IRCoT 35.80% / EX(SA) 49.70% | **+22.82pp / +8.92pp** |
+| **HotPotQA ans_F1** (n=7,405 distractor) | **73.37%** | DPR+FiD reader 65–72% | **above band** |
+
+### Production characteristics
+
+| Dimension | nox-mem | Comparison |
+|---|---:|---|
+| **KG path latency** | **2.5ms p50** | none sub-10ms published |
+| **KG path cost/query** | **$0.00** | Mem0 Cloud $0.001 → **769× cheaper** |
+| **Self-hosted footprint** | **399MB single-process** | Zep/Mem0/MemOS run 4+ services |
+| **Backbone portability** | **−10.54pp on backbone swap** | MemOS −16.72pp → **1.6× more portable** |
+| **Monthly OPEX** (embed + KG + VPS) | **< $11/mo** all-in | — |
+
+<sub>Methodology, paper, and full competitive analysis: [`memoria-nox`](https://github.com/totobusnello/memoria-nox). MemOS arXiv:2602.01313 · MuSiQue (Trivedi 2022) · HotPotQA (Yang 2018).</sub>
+
+---
+
+## 🔌 Multi-provider
+
+Default is **Gemini via Google AI Studio**. Point the LLM/embeddings at any **OpenAI-compatible** endpoint (DeepSeek, OpenRouter, Together, local Ollama/vLLM):
 
 ```bash
 # LLM
@@ -211,7 +253,7 @@ NOX_EMBEDDING_API_KEY=sk-...
 
 ---
 
-## Verify it's healthy
+## 🩺 Verify & troubleshoot
 
 ```bash
 node "$(npm root -g)/nox-mem/dist/api-server.js" &
@@ -219,31 +261,15 @@ curl -s "http://127.0.0.1:${NOX_API_PORT:-18800}/api/health" | jq .vectorCoverag
 # close to 1.0 = all chunks embedded; below 0.99 → run `nox-mem vectorize`
 ```
 
----
-
-## Command reference
-
-`nox-mem --help` lists all commands. Highlights:
-
-```
-search · ingest · ingest-entity · vectorize · reindex · stats · doctor · primer
-kg-build · kg-query · kg-path · kg-merge · reflect · crystallize
-decision-set/get/history/list · cross-search · digest · watch
-```
-
-Full env-var reference and per-command notes: **[`nox-mem/README.md`](./nox-mem/README.md)**.
-
----
-
-## Troubleshooting
-
 | Symptom | Fix |
 |---|---|
 | `vectorize` says "0 embedded" | env not sourced — `set -a; source .env; set +a` |
 | `vec0 ... cannot open shared object` | platform binary missing — `npm i -g sqlite-vec` or reinstall on the target OS |
 | `better-sqlite3` build error | install `build-essential` + `python3`, then `npm ci` again |
 | API port in use | set `NOX_API_PORT` (code default is 18800) |
-| path rejected by op-audit guard | DB/snapshot must sit under an allowed prefix — set `NOX_OP_AUDIT_ALLOWED_PREFIXES` or use `NOX_DB_PATH`/`NOX_MEM_DIR` (auto-allowed) |
+| path rejected by op-audit guard | set `NOX_OP_AUDIT_ALLOWED_PREFIXES`, or keep DB under `NOX_DB_PATH`/`NOX_MEM_DIR` (auto-allowed) |
+
+Full env-var reference and per-command notes: **[`nox-mem/README.md`](./nox-mem/README.md)**.
 
 ---
 
