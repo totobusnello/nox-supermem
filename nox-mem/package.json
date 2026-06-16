@@ -3,6 +3,37 @@
   "version": "3.0.0",
   "description": "Pain-weighted hybrid memory engine: FTS5 + semantic search + knowledge graph, self-hosted on any Linux VPS.",
   "type": "module",
+  "license": "MIT",
+  "author": "Luiz Antonio Busnello (Toto)",
+  "homepage": "https://github.com/totobusnello/nox-supermem#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/totobusnello/nox-supermem.git",
+    "directory": "nox-mem"
+  },
+  "bugs": {
+    "url": "https://github.com/totobusnello/nox-supermem/issues"
+  },
+  "keywords": [
+    "agent-memory",
+    "ai-memory",
+    "llm",
+    "rag",
+    "mcp",
+    "model-context-protocol",
+    "sqlite",
+    "vector-search",
+    "sqlite-vec",
+    "fts5",
+    "knowledge-graph",
+    "gemini",
+    "embeddings",
+    "self-hosted",
+    "hybrid-search"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
@@ -16,6 +47,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "node --test dist/__tests__/*.test.js",
     "test:retention": "node --test dist/__tests__/retention.test.js",
     "test:op-audit": "node --test dist/__tests__/op-audit-e2e.test.js"
