@@ -62,10 +62,9 @@ export async function crystallize(input: ProcedureInput): Promise<number> {
 
   const id = result.lastInsertRowid as number;
 
-  // Index in FTS
-  try {
-    db.prepare("INSERT INTO chunks_fts (rowid, chunk_text) VALUES (?, ?)").run(id, chunkText);
-  } catch {}
+  // FTS indexing is handled by the chunks_ai AFTER INSERT trigger (external-content, content=chunks).
+  // A manual INSERT here duplicated the FTS posting and broke the index 1:1 invariant,
+  // causing SQLITE_CORRUPT_VTAB on the next delete/update. Removed 2026-06-17.
 
   // Best-effort embed so procedures are immediately hybrid-searchable.
   // Skip silently if GEMINI_API_KEY is missing or embed fails — FTS still works.
