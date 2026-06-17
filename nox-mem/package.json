@@ -5,14 +5,14 @@
   "type": "module",
   "license": "MIT",
   "author": "Luiz Antonio Busnello (Toto)",
-  "homepage": "https://github.com/totobusnello/nox-supermem#readme",
+  "homepage": "https://github.com/totobusnello/nox-mem#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/totobusnello/nox-supermem.git",
+    "url": "git+https://github.com/totobusnello/nox-mem.git",
     "directory": "nox-mem"
   },
   "bugs": {
-    "url": "https://github.com/totobusnello/nox-supermem/issues"
+    "url": "https://github.com/totobusnello/nox-mem/issues"
   },
   "keywords": [
     "agent-memory",
